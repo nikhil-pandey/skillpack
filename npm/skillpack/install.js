@@ -37,8 +37,12 @@ const asset = `sp-${target}${ext}`;
 const url = `https://github.com/${repo}/releases/download/v${version}/${asset}`;
 const binDir = path.join(__dirname, "bin");
 const binPath = path.join(binDir, `sp${ext}`);
+const wrapperPath = path.join(binDir, "sp.js");
 
 fs.mkdirSync(binDir, { recursive: true });
+if (process.platform !== "win32" && fs.existsSync(wrapperPath)) {
+  fs.chmodSync(wrapperPath, 0o755);
+}
 
 function download(currentUrl, redirectsLeft) {
   return new Promise((resolve, reject) => {
