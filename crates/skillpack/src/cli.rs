@@ -1,6 +1,5 @@
 use crate::config::{load_config, load_config_detail, resolve_sink_path};
 use crate::discover::discover_local_skills;
-use crate::errors::CliError;
 use crate::install::{install_name, install_pack, uninstall_pack};
 use crate::output::{
     ConfigView, ImportView, InstallView, InstalledItem, InstalledView, Output, OutputFormat,
@@ -10,11 +9,14 @@ use crate::pack::{load_pack, resolve_pack_path};
 use crate::resolve::{detect_collisions, resolve_pack};
 use crate::state::{load_state, write_state};
 use crate::util::{discover_repo_root, make_absolute};
-use anyhow::Result;
+use color_eyre::eyre::{Result, eyre};
+use color_eyre::Section as _;
 use clap::{Parser, Subcommand, ValueHint};
 use std::collections::HashSet;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use tracing::debug;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
 #[command(name = "sp")]
@@ -50,7 +52,7 @@ pub struct Cli {
     format: OutputFormat,
     #[arg(long, global = true, help = "Disable ANSI colors")]
     no_color: bool,
-    #[arg(long, global = true, help = "Show git commands and extra details")]
+    #[arg(long, global = true, help = "Show debug logs on stderr")]
     verbose: bool,
     #[command(subcommand)]
     command: Commands,
@@ -102,20 +104,11 @@ enum Commands {
     Config,
 }
 
-pub fn run() -> ExitCode {
+pub fn run() -> Result<()> {
     let cli = Cli::parse();
-    let output = Output::new(cli.format, cli.no_color, cli.verbose);
-    let result = run_inner(&cli, &output);
-    if let Err(err) = result {
-        if let Some(cli_err) = err.downcast_ref::<CliError>() {
-            let _ = output.print_error(cli_err);
-        } else {
-            let fallback = CliError::new(err.to_string());
-            let _ = output.print_error(&fallback);
-        }
-        return ExitCode::from(1);
-    }
-    ExitCode::SUCCESS
+    init_diagnostics(cli.verbose, cli.no_color)?;
+    let output = Output::new(cli.format);
+    run_inner(&cli, &output)
 }
 
 fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
@@ -126,13 +119,7 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
     match cli.command {
         Commands::Skills => list_skills(&resolve_repo_root(cli)?, output),
         Commands::Packs => list_packs(&resolve_repo_root(cli)?, output),
-        Commands::Show { ref pack } => show_pack(
-            &resolve_repo_root(cli)?,
-            &cache_dir,
-            cli.verbose,
-            pack,
-            output,
-        ),
+        Commands::Show { ref pack } => show_pack(&resolve_repo_root(cli)?, &cache_dir, pack, output),
         Commands::Install {
             ref pack,
             ref agent,
@@ -140,7 +127,6 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
         } => install_cmd(
             &resolve_repo_root(cli)?,
             &cache_dir,
-            cli.verbose,
             pack,
             agent,
             path.as_deref(),
@@ -150,7 +136,13 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
             ref pack,
             ref agent,
             ref path,
-        } => uninstall_cmd(&resolve_repo_root(cli)?, pack, agent, path.as_deref(), output),
+        } => uninstall_cmd(
+            &resolve_repo_root(cli)?,
+            pack,
+            agent,
+            path.as_deref(),
+            output,
+        ),
         Commands::Installed { ref agent } => installed_cmd(agent.as_deref(), output),
         Commands::Config => config_cmd(output),
     }
@@ -178,14 +170,14 @@ fn list_skills(repo_root: &Path, output: &Output) -> Result<()> {
 fn list_packs(repo_root: &Path, output: &Output) -> Result<()> {
     let packs_dir = repo_root.join("packs");
     if !packs_dir.exists() {
-        return Err(
-            CliError::new(format!("packs directory not found: {}", packs_dir.display()))
-                .with_hint(
-                    "Auto-discovery checks current/parent dirs for skills/ or packs/. \
+        return Err(eyre!(
+            "packs directory not found: {}",
+            packs_dir.display()
+        )
+        .suggestion(
+            "Auto-discovery checks current/parent dirs for skills/ or packs/. \
 Use --root <repo> to override",
-                )
-                .into(),
-        );
+        ));
     }
     let mut packs = Vec::new();
     for entry in std::fs::read_dir(packs_dir)? {
@@ -216,12 +208,11 @@ Use --root <repo> to override",
 fn show_pack(
     repo_root: &Path,
     cache_dir: &Path,
-    verbose: bool,
     pack_arg: &str,
     output: &Output,
 ) -> Result<()> {
     let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
-    let resolved = resolve_pack(repo_root, &pack_path, cache_dir, verbose)?;
+    let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
     detect_collisions(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
@@ -273,7 +264,6 @@ fn show_pack(
 fn install_cmd(
     repo_root: &Path,
     cache_dir: &Path,
-    verbose: bool,
     pack_arg: &str,
     agent: &str,
     path_override: Option<&Path>,
@@ -283,7 +273,7 @@ fn install_cmd(
     let config = load_config()?;
     let sink_path = resolve_sink_path(&config, agent, path_override)?;
 
-    let resolved = resolve_pack(repo_root, &pack_path, cache_dir, verbose)?;
+    let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
     detect_collisions(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
@@ -322,6 +312,15 @@ fn install_cmd(
         installed_paths: record.installed_paths.clone(),
     };
     output.print_install(&view)?;
+    debug!(
+        added,
+        updated,
+        removed,
+        "install summary"
+    );
+    for path in &record.installed_paths {
+        debug!(path = %path, "installed path");
+    }
     Ok(())
 }
 
@@ -424,8 +423,29 @@ fn config_cmd(output: &Output) -> Result<()> {
     Ok(())
 }
 
+fn init_diagnostics(verbose: bool, no_color: bool) -> Result<()> {
+    if no_color {
+        // Safe: set before any threads spawn.
+        unsafe { std::env::set_var("NO_COLOR", "1") };
+    }
+    color_eyre::install()?;
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        if verbose {
+            EnvFilter::new("debug")
+        } else {
+            EnvFilter::new("warn")
+        }
+    });
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .with_ansi(!no_color && std::io::stderr().is_terminal())
+        .try_init()
+        .map_err(|err| eyre!("failed to initialize tracing subscriber: {err}"))?;
+    Ok(())
+}
+
 fn default_cache_dir() -> Result<PathBuf> {
-    let home =
-        dirs::home_dir().ok_or_else(|| CliError::new("missing home dir").with_hint("Set HOME"))?;
+    let home = dirs::home_dir().ok_or_else(|| eyre!("missing home dir").suggestion("Set HOME"))?;
     Ok(home.join(".skillpack/cache"))
 }

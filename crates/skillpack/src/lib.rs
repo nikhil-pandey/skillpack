@@ -1,7 +1,6 @@
 pub mod cli;
 pub mod config;
 pub mod discover;
-pub mod errors;
 pub mod git;
 pub mod install;
 pub mod output;

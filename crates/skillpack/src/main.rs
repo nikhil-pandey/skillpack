@@ -1,5 +1,9 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    skillpack::cli::run()
+    if let Err(err) = skillpack::cli::run() {
+        eprintln!("{err:?}");
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
 }

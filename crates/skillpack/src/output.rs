@@ -1,7 +1,6 @@
-use crate::errors::CliError;
 use clap::ValueEnum;
 use serde::Serialize;
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, Write};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum OutputFormat {
@@ -87,65 +86,13 @@ pub struct ConfigView {
     pub effective: Vec<SinkView>,
 }
 
-#[derive(Debug, Serialize)]
-struct ErrorView {
-    message: String,
-    hint: Option<String>,
-}
-
 pub struct Output {
     format: OutputFormat,
-    color: bool,
-    verbose: bool,
 }
 
 impl Output {
-    pub fn new(format: OutputFormat, no_color: bool, verbose: bool) -> Self {
-        let color =
-            matches!(format, OutputFormat::Pretty) && !no_color && io::stdout().is_terminal();
-        Self {
-            format,
-            color,
-            verbose,
-        }
-    }
-
-    pub fn format(&self) -> OutputFormat {
-        self.format
-    }
-
-    pub fn print_error(&self, err: &CliError) -> io::Result<()> {
-        match self.format {
-            OutputFormat::Json => self.print_json(&ErrorView {
-                message: err.message().to_string(),
-                hint: err.hint().map(|hint| hint.to_string()),
-            }),
-            OutputFormat::Plain => {
-                let mut out = String::new();
-                out.push_str("error: ");
-                out.push_str(err.message());
-                if let Some(hint) = err.hint() {
-                    out.push_str("\nhint: ");
-                    out.push_str(hint);
-                }
-                out.push('\n');
-                self.write_stderr(&out)
-            }
-            OutputFormat::Pretty => {
-                let mut out = String::new();
-                out.push_str(&self.style("Error", "31;1"));
-                out.push_str(": ");
-                out.push_str(err.message());
-                if let Some(hint) = err.hint() {
-                    out.push('\n');
-                    out.push_str(&self.style("Hint", "2"));
-                    out.push_str(": ");
-                    out.push_str(hint);
-                }
-                out.push('\n');
-                self.write_stderr(&out)
-            }
-        }
+    pub fn new(format: OutputFormat) -> Self {
+        Self { format }
     }
 
     pub fn print_skills(&self, skills: &[String]) -> io::Result<()> {
@@ -290,13 +237,6 @@ impl Output {
                 if view.removed > 0 {
                     out.push_str(&self.kv("Removed", &view.removed.to_string()));
                 }
-                if self.verbose {
-                    out.push('\n');
-                    out.push_str(&self.section("Installed paths", view.installed_paths.len()));
-                    for path in &view.installed_paths {
-                        out.push_str(&self.bullet(path));
-                    }
-                }
                 self.write_stdout(&out)
             }
         }
@@ -397,12 +337,10 @@ impl Output {
     }
 
     fn section(&self, title: &str, count: usize) -> String {
-        let text = format!("{title} ({count})");
-        format!("{}\n", self.style(&text, "1"))
+        format!("{title} ({count})\n")
     }
 
     fn kv(&self, label: &str, value: &str) -> String {
-        let label = self.style(label, "1");
         format!("{label}: {value}\n")
     }
 
@@ -414,22 +352,9 @@ impl Output {
         format!("  - {text}\n")
     }
 
-    fn style(&self, text: &str, code: &str) -> String {
-        if self.color {
-            format!("\x1b[{code}m{text}\x1b[0m")
-        } else {
-            text.to_string()
-        }
-    }
-
     fn write_stdout(&self, text: &str) -> io::Result<()> {
         let mut stdout = io::stdout().lock();
         stdout.write_all(text.as_bytes())
-    }
-
-    fn write_stderr(&self, text: &str) -> io::Result<()> {
-        let mut stderr = io::stderr().lock();
-        stderr.write_all(text.as_bytes())
     }
 
     fn print_json<T: Serialize>(&self, value: &T) -> io::Result<()> {

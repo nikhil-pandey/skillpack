@@ -48,7 +48,7 @@ fn resolves_imported_skills() {
     let pack_path = repo_root_abs.join("packs/demo.yaml");
     let cache_dir = repo_root_abs.join("cache");
 
-    let resolved = resolve_pack(&repo_root_abs, &pack_path, &cache_dir, false).unwrap();
+    let resolved = resolve_pack(&repo_root_abs, &pack_path, &cache_dir).unwrap();
     assert_eq!(resolved.imports.len(), 1);
     let import = &resolved.imports[0];
     assert_eq!(import.skills.len(), 1);
@@ -88,7 +88,7 @@ fn resolves_imported_skills_without_local_include() {
     let pack_path = repo_root_abs.join("packs/demo.yaml");
     let cache_dir = repo_root_abs.join("cache");
 
-    let resolved = resolve_pack(&repo_root_abs, &pack_path, &cache_dir, false).unwrap();
+    let resolved = resolve_pack(&repo_root_abs, &pack_path, &cache_dir).unwrap();
     assert_eq!(resolved.imports.len(), 1);
     let import = &resolved.imports[0];
     assert_eq!(import.skills.len(), 1);

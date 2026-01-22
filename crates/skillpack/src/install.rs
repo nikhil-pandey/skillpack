@@ -1,10 +1,11 @@
-use crate::errors::CliError;
-use crate::resolve::{ResolvedPack, ResolvedSkill, SkillSource};
+use crate::resolve::{ResolvedPack, ResolvedSkill};
 use crate::state::{ImportRecord, InstallRecord, StateFile, find_record_index, record_owned_path};
 use crate::util::{ensure_child_path, flatten_id, now_rfc3339};
-use anyhow::Result;
+use color_eyre::eyre::{Result, eyre};
+use color_eyre::Section as _;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use tracing::debug;
 use walkdir::WalkDir;
 
 pub fn install_pack(
@@ -14,6 +15,11 @@ pub fn install_pack(
     state: &mut StateFile,
 ) -> Result<InstallRecord> {
     std::fs::create_dir_all(sink_path)?;
+    debug!(
+        pack = %resolved.pack.name,
+        path = %sink_path.display(),
+        "install pack"
+    );
 
     let install_prefix = &resolved.pack.install_prefix;
     let install_sep = &resolved.pack.install_sep;
@@ -32,6 +38,7 @@ pub fn install_pack(
                 let path = PathBuf::from(old);
                 ensure_child_path(sink_path, &path)?;
                 if path.exists() {
+                    debug!(path = %path.display(), "remove stale");
                     std::fs::remove_dir_all(&path)?;
                 }
             }
@@ -42,16 +49,21 @@ pub fn install_pack(
         let dest = sink_path.join(install_name(install_prefix, install_sep, &skill.id));
         if dest.exists() {
             if !record_owned_path(state, sink_path, &resolved.pack.name, &dest) {
-                return Err(CliError::new(format!(
+                return Err(eyre!(
                     "destination exists but is not owned by pack: {}",
                     dest.display()
-                ))
-                .with_hint("Change install prefix/sep or uninstall the other pack")
-                .into());
+                )
+                .suggestion("Change install prefix/sep or uninstall the other pack"));
             }
             ensure_child_path(sink_path, &dest)?;
+            debug!(path = %dest.display(), "remove existing");
             std::fs::remove_dir_all(&dest)?;
         }
+        debug!(
+            src = %skill.dir.display(),
+            dest = %dest.display(),
+            "copy skill"
+        );
         copy_skill_dir(&skill.dir, &dest)?;
     }
 
@@ -90,13 +102,14 @@ pub fn uninstall_pack(
     pack: &str,
 ) -> Result<InstallRecord> {
     let index = find_record_index(state, sink_path, pack).ok_or_else(|| {
-        CliError::new("pack not installed").with_hint("Run sp installed to list installed packs")
+        eyre!("pack not installed").suggestion("Run sp installed to list installed packs")
     })?;
     let record = state.installs.remove(index);
     for path in &record.installed_paths {
         let dest = PathBuf::from(path);
         ensure_child_path(sink_path, &dest)?;
         if dest.exists() {
+            debug!(path = %dest.display(), "remove");
             std::fs::remove_dir_all(dest)?;
         }
     }
@@ -141,13 +154,6 @@ fn copy_skill_dir(src: &Path, dest: &Path) -> Result<()> {
         }
     }
     Ok(())
-}
-
-pub fn format_skill_source(skill: &ResolvedSkill) -> String {
-    match &skill.source {
-        SkillSource::Local => "local".to_string(),
-        SkillSource::Remote { repo } => format!("import:{repo}"),
-    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
-use crate::errors::CliError;
-use anyhow::Result;
+use color_eyre::eyre::{Result, eyre};
+use color_eyre::Section as _;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
@@ -11,9 +11,8 @@ impl PatternSet {
     pub fn new(patterns: &[String]) -> Result<Self> {
         for pat in patterns {
             if !is_valid_pattern(pat) {
-                return Err(CliError::new(format!("invalid pattern: {pat}"))
-                    .with_hint("Use * within segments and ** for any depth")
-                    .into());
+                return Err(eyre!("invalid pattern: {pat}")
+                    .suggestion("Use * within segments and ** for any depth"));
             }
         }
         Ok(Self {
@@ -38,10 +37,6 @@ impl PatternSet {
             .iter()
             .map(|pat| texts.iter().filter(|t| match_pattern(pat, t)).count())
             .collect()
-    }
-
-    pub fn patterns(&self) -> &[String] {
-        &self.patterns
     }
 }
 

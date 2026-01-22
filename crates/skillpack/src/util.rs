@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use color_eyre::eyre::{Result, eyre};
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -48,7 +48,7 @@ pub fn ensure_child_path(root: &Path, candidate: &Path) -> Result<()> {
     if candidate.starts_with(root) {
         Ok(())
     } else {
-        Err(anyhow!(
+        Err(eyre!(
             "refusing to operate outside sink path: {}",
             candidate.display()
         ))

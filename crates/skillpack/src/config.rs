@@ -1,6 +1,6 @@
-use crate::errors::CliError;
 use crate::util::make_absolute;
-use anyhow::Result;
+use color_eyre::eyre::{Result, eyre};
+use color_eyre::Section as _;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -35,7 +35,7 @@ where
     if let Some(path) = get_var("SKILLPACK_HOME") {
         return Ok(PathBuf::from(path));
     }
-    let home = home_dir().ok_or_else(|| CliError::new("missing home dir").with_hint("Set HOME"))?;
+    let home = home_dir().ok_or_else(|| eyre!("missing home dir").suggestion("Set HOME"))?;
     Ok(home.join(".skillpack"))
 }
 
@@ -48,8 +48,7 @@ pub fn state_path() -> Result<PathBuf> {
 }
 
 fn default_sinks() -> Result<BTreeMap<String, PathBuf>> {
-    let home =
-        dirs::home_dir().ok_or_else(|| CliError::new("missing home dir").with_hint("Set HOME"))?;
+    let home = dirs::home_dir().ok_or_else(|| eyre!("missing home dir").suggestion("Set HOME"))?;
     let mut sinks = BTreeMap::new();
     sinks.insert("codex".to_string(), home.join(".codex/skills"));
     sinks.insert("claude".to_string(), home.join(".claude/skills"));
@@ -103,16 +102,14 @@ pub fn resolve_sink_path(
         return make_absolute(path);
     }
     if sink == "custom" {
-        return Err(CliError::new("custom sink requires --path")
-            .with_hint("Use --path to set the destination folder")
-            .into());
+        return Err(eyre!("custom sink requires --path")
+            .suggestion("Use --path to set the destination folder"));
     }
     config.sinks.get(sink).cloned().ok_or_else(|| {
         let mut names: Vec<String> = config.sinks.keys().cloned().collect();
         names.sort();
-        CliError::new(format!("unknown sink: {sink}"))
-            .with_hint(format!("Available sinks: {}", names.join(", ")))
-            .into()
+        eyre!("unknown sink: {sink}")
+            .suggestion(format!("Available sinks: {}", names.join(", ")))
     })
 }
 

@@ -1,6 +1,6 @@
-use crate::errors::CliError;
 use crate::util::path_to_id;
-use anyhow::Result;
+use color_eyre::eyre::{Result, eyre};
+use color_eyre::Section as _;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -15,12 +15,10 @@ pub fn discover_local_skills(repo_root: &Path) -> Result<Vec<Skill>> {
     let skills_root = repo_root.join("skills");
     if !skills_root.exists() {
         return Err(
-            CliError::new(format!("skills directory not found: {}", skills_root.display()))
-                .with_hint(
-                    "Auto-discovery checks current/parent dirs for skills/ or packs/. \
+            eyre!("skills directory not found: {}", skills_root.display()).suggestion(
+                "Auto-discovery checks current/parent dirs for skills/ or packs/. \
 Use --root <repo> to override",
-                )
-                .into(),
+            ),
         );
     }
     discover_skills(&skills_root, true)
@@ -48,19 +46,17 @@ fn discover_skills(root: &Path, is_local: bool) -> Result<Vec<Skill>> {
         };
         if parent == root {
             if is_local {
-                return Err(CliError::new("skills/SKILL.md is invalid")
-                    .with_hint("Move SKILL.md into a leaf skill folder")
-                    .into());
+                return Err(eyre!("skills/SKILL.md is invalid")
+                    .suggestion("Move SKILL.md into a leaf skill folder"));
             }
             continue;
         }
         if is_skill_md_symlink && !dir_is_symlink(parent)? {
-            return Err(CliError::new(format!(
+            return Err(eyre!(
                 "SKILL.md is a symlink but the skill folder is not: {}",
                 parent.display()
-            ))
-            .with_hint("Symlink the skill folder under skills/ to reuse a skill")
-            .into());
+            )
+            .suggestion("Symlink the skill folder under skills/ to reuse a skill"));
         }
         let rel = parent.strip_prefix(root)?;
         if rel.as_os_str().is_empty() {
@@ -87,11 +83,8 @@ fn discover_skills(root: &Path, is_local: bool) -> Result<Vec<Skill>> {
         let id = path_to_id(&rel);
         let dir = root.join(&rel);
         if !dir.is_dir() {
-            return Err(
-                CliError::new(format!("skill dir is not a directory: {}", dir.display()))
-                    .with_hint("Check for broken symlinks or files under skills/")
-                    .into(),
-            );
+            return Err(eyre!("skill dir is not a directory: {}", dir.display())
+                .suggestion("Check for broken symlinks or files under skills/"));
         }
         skills.push(Skill { id, dir });
     }
@@ -145,7 +138,11 @@ mod tests {
 
         let alias = skills.child("alias");
         alias.create_dir_all().unwrap();
-        symlink(target.child("SKILL.md").path(), alias.child("SKILL.md").path()).unwrap();
+        symlink(
+            target.child("SKILL.md").path(),
+            alias.child("SKILL.md").path(),
+        )
+        .unwrap();
 
         let err = discover_skills(skills.path(), true).unwrap_err();
         assert!(err.to_string().contains("SKILL.md is a symlink"));
