@@ -848,6 +848,8 @@ dependencies = [
  "clap",
  "color-eyre",
  "dirs",
+ "globset",
+ "owo-colors",
  "predicates",
  "serde",
  "serde_json",

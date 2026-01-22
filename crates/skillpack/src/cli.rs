@@ -11,12 +11,24 @@ use crate::state::{load_state, write_state};
 use crate::util::{discover_repo_root, make_absolute};
 use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
-use clap::{Parser, Subcommand, ValueHint};
+use clap::{Parser, Subcommand, ValueHint, builder::Styles};
+use clap::builder::styling::{AnsiColor, Effects};
 use std::collections::HashSet;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 use tracing_subscriber::EnvFilter;
+
+const fn help_styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::White.on_default().effects(Effects::BOLD))
+        .usage(AnsiColor::White.on_default().effects(Effects::BOLD))
+        .literal(AnsiColor::Cyan.on_default())
+        .placeholder(AnsiColor::Green.on_default())
+        .valid(AnsiColor::Cyan.on_default())
+        .invalid(AnsiColor::Yellow.on_default())
+        .error(AnsiColor::Red.on_default().effects(Effects::BOLD))
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "sp")]
@@ -24,6 +36,7 @@ use tracing_subscriber::EnvFilter;
     about = "Build and install agent skills",
     version,
     arg_required_else_help = true,
+    styles = help_styles(),
     after_help = "Examples:\n  sp skills\n  sp packs\n  sp show general\n  sp install general --agent codex\n  sp installed\n\nUse --format plain for script-friendly output."
 )]
 pub struct Cli {
@@ -107,7 +120,7 @@ enum Commands {
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
     init_diagnostics(cli.verbose, cli.no_color)?;
-    let output = Output::new(cli.format);
+    let output = Output::new(cli.format, cli.no_color);
     run_inner(&cli, &output)
 }
 

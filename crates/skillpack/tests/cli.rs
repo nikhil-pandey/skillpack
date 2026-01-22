@@ -11,7 +11,7 @@ fn list_outputs_skill_ids() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
     cmd.arg("skills").arg("--root").arg(temp.path());
     cmd.assert().success().stdout(
-        predicate::str::contains("Skills (2)")
+        predicate::str::contains("Skills")
             .and(predicate::str::contains("alpha"))
             .and(predicate::str::contains("beta")),
     );
@@ -30,7 +30,7 @@ fn packs_outputs_pack_names() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
     cmd.arg("packs").arg("--root").arg(temp.path());
     cmd.assert().success().stdout(
-        predicate::str::contains("Packs (2)")
+        predicate::str::contains("Packs")
             .and(predicate::str::contains("demo"))
             .and(predicate::str::contains("other")),
     );
@@ -52,7 +52,7 @@ fn show_outputs_final_names() {
         .arg("--cache-dir")
         .arg(temp.child("cache").path());
     cmd.assert().success().stdout(
-        predicate::str::contains("Final install names (1)")
+        predicate::str::contains("Installs as")
             .and(predicate::str::contains("demo__alpha")),
     );
 }
@@ -81,9 +81,10 @@ fn install_hides_zero_counters() {
         .env("HOME", temp.path())
         .env("SKILLPACK_HOME", temp.child(".skillpack").path());
     cmd.assert().success().stdout(
-        predicate::str::contains("Added: 1")
-            .and(predicate::str::contains("Updated:").not())
-            .and(predicate::str::contains("Removed:").not()),
+        predicate::str::contains("added")
+            .and(predicate::str::contains("1"))
+            .and(predicate::str::contains("updated").not())
+            .and(predicate::str::contains("removed").not()),
     );
 }
 

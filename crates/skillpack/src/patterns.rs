@@ -1,41 +1,45 @@
 use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
-use std::collections::HashSet;
+use globset::{Glob, GlobBuilder, GlobMatcher, GlobSet, GlobSetBuilder};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PatternSet {
-    patterns: Vec<String>,
+    matcher: GlobSet,
+    per_pattern: Vec<PatternMatcher>,
 }
 
 impl PatternSet {
     pub fn new(patterns: &[String]) -> Result<Self> {
+        let mut set_builder = GlobSetBuilder::new();
+        let mut per_pattern = Vec::with_capacity(patterns.len());
         for pat in patterns {
             if !is_valid_pattern(pat) {
                 return Err(eyre!("invalid pattern: {pat}")
                     .suggestion("Use * within segments and ** for any depth"));
             }
+            let (matcher, globs) = build_matcher(pat)?;
+            for glob in globs {
+                set_builder.add(glob);
+            }
+            per_pattern.push(matcher);
         }
+        let matcher = set_builder.build().map_err(|err| {
+            eyre!("invalid pattern: {err}").suggestion("Use * within segments and ** for any depth")
+        })?;
         Ok(Self {
-            patterns: patterns.to_vec(),
+            matcher,
+            per_pattern,
         })
     }
 
     pub fn is_match(&self, text: &str) -> bool {
-        self.patterns.iter().any(|pat| match_pattern(pat, text))
-    }
-
-    pub fn match_all(&self, texts: &[String]) -> Vec<String> {
-        texts
-            .iter()
-            .filter(|text| self.is_match(text))
-            .cloned()
-            .collect()
+        self.matcher.is_match(text)
     }
 
     pub fn match_count_per_pattern(&self, texts: &[String]) -> Vec<usize> {
-        self.patterns
+        self.per_pattern
             .iter()
-            .map(|pat| texts.iter().filter(|t| match_pattern(pat, t)).count())
+            .map(|matcher| texts.iter().filter(|t| matcher.is_match(t)).count())
             .collect()
     }
 }
@@ -56,79 +60,76 @@ pub fn is_valid_pattern(pattern: &str) -> bool {
 }
 
 pub fn match_pattern(pattern: &str, text: &str) -> bool {
-    let pat_segments: Vec<&str> = pattern.split('/').collect();
-    let text_segments: Vec<&str> = text.split('/').collect();
-    let mut memo = HashSet::new();
-    match_segments(&pat_segments, &text_segments, 0, 0, &mut memo)
+    if !is_valid_pattern(pattern) {
+        return false;
+    }
+    build_matcher(pattern)
+        .map(|(matcher, _)| matcher.is_match(text))
+        .unwrap_or(false)
 }
 
-fn match_segments(
-    pat: &[&str],
-    text: &[&str],
-    pi: usize,
-    ti: usize,
-    memo: &mut HashSet<(usize, usize)>,
-) -> bool {
-    if !memo.insert((pi, ti)) {
-        return false;
-    }
-    if pi == pat.len() {
-        return ti == text.len();
-    }
-    if pat[pi] == "**" {
-        if match_segments(pat, text, pi + 1, ti, memo) {
-            return true;
-        }
-        if ti < text.len() {
-            return match_segments(pat, text, pi, ti + 1, memo);
-        }
-        return false;
-    }
-    if ti >= text.len() {
-        return false;
-    }
-    if segment_match(pat[pi], text[ti]) {
-        return match_segments(pat, text, pi + 1, ti + 1, memo);
-    }
-    false
+#[derive(Debug)]
+struct PatternMatcher {
+    primary: GlobMatcher,
+    prefix: Option<GlobMatcher>,
 }
 
-fn segment_match(pattern: &str, text: &str) -> bool {
-    if !pattern.contains('*') {
-        return pattern == text;
+impl PatternMatcher {
+    fn is_match(&self, text: &str) -> bool {
+        self.primary.is_match(text) || self.prefix.as_ref().is_some_and(|m| m.is_match(text))
     }
-    if pattern == "*" {
-        return true;
+}
+
+fn build_matcher(pattern: &str) -> Result<(PatternMatcher, Vec<Glob>)> {
+    let primary_glob = build_glob(pattern)?;
+    let primary = primary_glob.compile_matcher();
+    let mut globs = vec![primary_glob];
+    let prefix = if let Some(prefix_glob) = trailing_prefix_glob(pattern)? {
+        let matcher = prefix_glob.compile_matcher();
+        globs.push(prefix_glob);
+        Some(matcher)
+    } else {
+        None
+    };
+    Ok((PatternMatcher { primary, prefix }, globs))
+}
+
+fn trailing_prefix_glob(pattern: &str) -> Result<Option<Glob>> {
+    if !pattern.ends_with("/**") {
+        return Ok(None);
     }
-    let parts: Vec<&str> = pattern.split('*').collect();
-    let mut pos = 0;
-    if !pattern.starts_with('*') {
-        let first = parts.first().unwrap_or(&"");
-        if !text.starts_with(first) {
-            return false;
-        }
-        pos = first.len();
+    let prefix = pattern.trim_end_matches("/**");
+    if prefix.is_empty() {
+        return Ok(None);
     }
-    if !pattern.ends_with('*') {
-        let last = parts.last().unwrap_or(&"");
-        if !text.ends_with(last) {
-            return false;
+    Ok(Some(build_glob(prefix)?))
+}
+
+fn build_glob(pattern: &str) -> Result<Glob> {
+    let escaped = escape_pattern(pattern);
+    GlobBuilder::new(&escaped)
+        .literal_separator(true)
+        .backslash_escape(true)
+        .build()
+        .map_err(|err| {
+            eyre!("invalid pattern: {pattern}: {err}")
+                .suggestion("Use * within segments and ** for any depth")
+        })
+}
+
+fn escape_pattern(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    for ch in pattern.chars() {
+        match ch {
+            '*' => out.push('*'),
+            '?' | '[' | ']' | '{' | '}' | ',' | '\\' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
         }
     }
-    for (idx, part) in parts.iter().enumerate() {
-        if part.is_empty() {
-            continue;
-        }
-        if idx == 0 && !pattern.starts_with('*') {
-            continue;
-        }
-        if let Some(found) = text[pos..].find(part) {
-            pos += found + part.len();
-        } else {
-            return false;
-        }
-    }
-    true
+    out
 }
 
 #[cfg(test)]
