@@ -9,7 +9,7 @@ fn list_outputs_skill_ids() {
     temp.child("skills/beta/SKILL.md").write_str("x").unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
-    cmd.arg("skills").arg("--repo-root").arg(temp.path());
+    cmd.arg("skills").arg("--root").arg(temp.path());
     cmd.assert().success().stdout(
         predicate::str::contains("Skills (2)")
             .and(predicate::str::contains("alpha"))
@@ -28,7 +28,7 @@ fn packs_outputs_pack_names() {
         .unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
-    cmd.arg("packs").arg("--repo-root").arg(temp.path());
+    cmd.arg("packs").arg("--root").arg(temp.path());
     cmd.assert().success().stdout(
         predicate::str::contains("Packs (2)")
             .and(predicate::str::contains("demo"))
@@ -47,7 +47,7 @@ fn show_outputs_final_names() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
     cmd.arg("show")
         .arg("demo")
-        .arg("--repo-root")
+        .arg("--root")
         .arg(temp.path())
         .arg("--cache-dir")
         .arg(temp.child("cache").path());
@@ -74,7 +74,7 @@ fn install_hides_zero_counters() {
         .arg("custom")
         .arg("--path")
         .arg(sink.path())
-        .arg("--repo-root")
+        .arg("--root")
         .arg(temp.path())
         .arg("--cache-dir")
         .arg(temp.child("cache").path())
@@ -85,4 +85,18 @@ fn install_hides_zero_counters() {
             .and(predicate::str::contains("Updated:").not())
             .and(predicate::str::contains("Removed:").not()),
     );
+}
+
+#[test]
+fn auto_discovers_repo_root() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    temp.child("skills/alpha/SKILL.md").write_str("x").unwrap();
+    let work = temp.child("work");
+    work.create_dir_all().unwrap();
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("skills").current_dir(work.path());
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("alpha"));
 }

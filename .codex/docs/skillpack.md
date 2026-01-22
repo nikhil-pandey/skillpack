@@ -400,7 +400,7 @@ Print effective sink config.
 
 ### Common flags (where applicable)
 
-* `--repo-root <path>`: override current repo root (default: `.`)
+* `--root <path>`: repo root (dir with skills/ and packs/). Auto-discovered from CWD. `--repo-root` alias.
 * `--cache-dir <path>`: override git cache (default: `~/.skillpack/cache`)
 * `--verbose`
 

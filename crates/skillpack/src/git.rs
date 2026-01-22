@@ -99,9 +99,6 @@ fn hash_repo(repo: &str) -> String {
 }
 
 fn run_git(args: &[&str], verbose: bool) -> Result<String> {
-    if verbose {
-        eprintln!("git {}", args.join(" "));
-    }
     let output = Command::new("git").args(args).output()?;
     if !output.status.success() {
         return Err(anyhow!(

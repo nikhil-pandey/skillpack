@@ -51,13 +51,16 @@ pub fn resolve_pack_path(repo_root: &Path, pack_arg: &str) -> Result<PathBuf> {
     }
     if pack_arg.ends_with(".yaml") || pack_arg.ends_with(".yml") {
         return Err(CliError::new(format!("pack file not found: {pack_arg}"))
-            .with_hint("Check the path or run sp packs")
+            .with_hint("Check the path or run sp packs --root <repo> to list packs")
             .into());
     }
     let pack_path = repo_root.join("packs").join(format!("{pack_arg}.yaml"));
     if !pack_path.exists() {
         return Err(CliError::new(format!("pack not found: {pack_arg}"))
-            .with_hint("Run sp packs to list available packs")
+            .with_hint(format!(
+                "Expected {}. Run sp packs --root <repo> to list packs",
+                pack_path.display()
+            ))
             .into());
     }
     Ok(pack_path)

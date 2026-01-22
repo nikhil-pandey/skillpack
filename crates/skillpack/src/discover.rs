@@ -14,9 +14,14 @@ pub struct Skill {
 pub fn discover_local_skills(repo_root: &Path) -> Result<Vec<Skill>> {
     let skills_root = repo_root.join("skills");
     if !skills_root.exists() {
-        return Err(CliError::new("skills directory not found")
-            .with_hint("Run from repo root or use --repo-root")
-            .into());
+        return Err(
+            CliError::new(format!("skills directory not found: {}", skills_root.display()))
+                .with_hint(
+                    "Auto-discovery checks current/parent dirs for skills/ or packs/. \
+Use --root <repo> to override",
+                )
+                .into(),
+        );
     }
     discover_skills(&skills_root, true)
 }

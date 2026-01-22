@@ -9,7 +9,7 @@ use crate::output::{
 use crate::pack::{load_pack, resolve_pack_path};
 use crate::resolve::{detect_collisions, resolve_pack};
 use crate::state::{load_state, write_state};
-use crate::util::make_absolute;
+use crate::util::{discover_repo_root, make_absolute};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueHint};
 use std::collections::HashSet;
@@ -26,13 +26,13 @@ use std::process::ExitCode;
 )]
 pub struct Cli {
     #[arg(
-        long,
-        default_value = ".",
+        long = "root",
+        alias = "repo-root",
         global = true,
         value_hint = ValueHint::DirPath,
-        help = "Repo root (default: current directory)"
+        help = "Repo root (dir with skills/ and packs/). Auto-discovered from current dir."
     )]
-    repo_root: PathBuf,
+    repo_root: Option<PathBuf>,
     #[arg(
         long,
         global = true,
@@ -119,21 +119,26 @@ pub fn run() -> ExitCode {
 }
 
 fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
-    let repo_root = make_absolute(&cli.repo_root)?;
     let cache_dir = match cli.cache_dir {
         Some(ref path) => make_absolute(path)?,
         None => default_cache_dir()?,
     };
     match cli.command {
-        Commands::Skills => list_skills(&repo_root, output),
-        Commands::Packs => list_packs(&repo_root, output),
-        Commands::Show { ref pack } => show_pack(&repo_root, &cache_dir, cli.verbose, pack, output),
+        Commands::Skills => list_skills(&resolve_repo_root(cli)?, output),
+        Commands::Packs => list_packs(&resolve_repo_root(cli)?, output),
+        Commands::Show { ref pack } => show_pack(
+            &resolve_repo_root(cli)?,
+            &cache_dir,
+            cli.verbose,
+            pack,
+            output,
+        ),
         Commands::Install {
             ref pack,
             ref agent,
             ref path,
         } => install_cmd(
-            &repo_root,
+            &resolve_repo_root(cli)?,
             &cache_dir,
             cli.verbose,
             pack,
@@ -145,10 +150,21 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
             ref pack,
             ref agent,
             ref path,
-        } => uninstall_cmd(&repo_root, pack, agent, path.as_deref(), output),
+        } => uninstall_cmd(&resolve_repo_root(cli)?, pack, agent, path.as_deref(), output),
         Commands::Installed { ref agent } => installed_cmd(agent.as_deref(), output),
         Commands::Config => config_cmd(output),
     }
+}
+
+fn resolve_repo_root(cli: &Cli) -> Result<PathBuf> {
+    if let Some(ref root) = cli.repo_root {
+        return make_absolute(root);
+    }
+    let cwd = std::env::current_dir()?;
+    if let Some(found) = discover_repo_root(&cwd) {
+        return Ok(found);
+    }
+    Ok(cwd)
 }
 
 fn list_skills(repo_root: &Path, output: &Output) -> Result<()> {
@@ -162,9 +178,14 @@ fn list_skills(repo_root: &Path, output: &Output) -> Result<()> {
 fn list_packs(repo_root: &Path, output: &Output) -> Result<()> {
     let packs_dir = repo_root.join("packs");
     if !packs_dir.exists() {
-        return Err(CliError::new("packs directory not found")
-            .with_hint("Run from repo root or use --repo-root")
-            .into());
+        return Err(
+            CliError::new(format!("packs directory not found: {}", packs_dir.display()))
+                .with_hint(
+                    "Auto-discovery checks current/parent dirs for skills/ or packs/. \
+Use --root <repo> to override",
+                )
+                .into(),
+        );
     }
     let mut packs = Vec::new();
     for entry in std::fs::read_dir(packs_dir)? {
