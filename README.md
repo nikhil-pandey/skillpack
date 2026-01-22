@@ -121,6 +121,7 @@ sp install group-x --agent custom --path /tmp/skills
 - At least one of `include` or `imports` is required.
 - Use `--format plain` for script-friendly output.
 - Any include pattern provided that matches zero skills = error.
+- Symlink skill folders ok; `SKILL.md` symlink only allowed when the skill folder is a symlink.
 
 ## Build & test 🧪
 

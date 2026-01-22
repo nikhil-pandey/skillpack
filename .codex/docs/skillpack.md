@@ -26,7 +26,8 @@
 
 * Any directory under `skills/` that contains `SKILL.md` **and** contains no descendant `SKILL.md` is a skill.
 * `skills/` itself cannot be a skill (a `skills/SKILL.md` is invalid).
-* If a skill directory or its `SKILL.md` is a symlink, resolve and read its contents.
+* Skill directories may be symlinks. `SKILL.md` may be a symlink only when its parent skill
+  directory is a symlink; otherwise it's an error. Skill IDs always use the path under `skills/`.
 
 ### Local skill ID
 

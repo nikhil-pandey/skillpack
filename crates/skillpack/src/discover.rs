@@ -37,6 +37,7 @@ fn discover_skills(root: &Path, is_local: bool) -> Result<Vec<Skill>> {
         if entry.file_name() != "SKILL.md" {
             continue;
         }
+        let is_skill_md_symlink = entry.path_is_symlink();
         let metadata = entry.metadata()?;
         if !metadata.is_file() {
             continue;
@@ -52,6 +53,14 @@ fn discover_skills(root: &Path, is_local: bool) -> Result<Vec<Skill>> {
                     .into());
             }
             continue;
+        }
+        if is_skill_md_symlink && !dir_is_symlink(parent)? {
+            return Err(CliError::new(format!(
+                "SKILL.md is a symlink but the skill folder is not: {}",
+                parent.display()
+            ))
+            .with_hint("Symlink the skill folder under skills/ to reuse a skill")
+            .into());
         }
         let rel = parent.strip_prefix(root)?;
         if rel.as_os_str().is_empty() {
@@ -89,6 +98,10 @@ fn discover_skills(root: &Path, is_local: bool) -> Result<Vec<Skill>> {
     Ok(skills)
 }
 
+fn dir_is_symlink(path: &Path) -> Result<bool> {
+    Ok(std::fs::symlink_metadata(path)?.file_type().is_symlink())
+}
+
 #[cfg(test)]
 mod tests {
     use super::discover_skills;
@@ -116,5 +129,25 @@ mod tests {
 
         let err = discover_skills(skills.path(), true).unwrap_err();
         assert!(err.to_string().contains("skills/SKILL.md"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skill_md_symlink_requires_symlinked_folder() {
+        use std::os::unix::fs::symlink;
+
+        let temp = assert_fs::TempDir::new().unwrap();
+        let skills = temp.child("skills");
+        skills.create_dir_all().unwrap();
+        let target = temp.child("target");
+        target.create_dir_all().unwrap();
+        target.child("SKILL.md").write_str("x").unwrap();
+
+        let alias = skills.child("alias");
+        alias.create_dir_all().unwrap();
+        symlink(target.child("SKILL.md").path(), alias.child("SKILL.md").path()).unwrap();
+
+        let err = discover_skills(skills.path(), true).unwrap_err();
+        assert!(err.to_string().contains("SKILL.md is a symlink"));
     }
 }
