@@ -14,8 +14,16 @@ pub fn path_to_id(path: &Path) -> String {
     out
 }
 
-pub fn flatten_id(id: &str, sep: &str) -> String {
-    id.replace('/', sep)
+pub fn flatten_id(id: &str, sep: &str, flatten: bool) -> String {
+    if flatten {
+        id.rsplit('/').next().unwrap_or(id).to_string()
+    } else {
+        id.replace('/', sep)
+    }
+}
+
+pub fn install_name(prefix: &str, sep: &str, id: &str, flatten: bool) -> String {
+    format!("{prefix}{sep}{}", flatten_id(id, sep, flatten))
 }
 
 pub fn make_absolute(path: &Path) -> Result<PathBuf> {

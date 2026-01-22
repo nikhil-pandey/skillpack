@@ -1,6 +1,6 @@
 use crate::resolve::{ResolvedPack, ResolvedSkill};
 use crate::state::{ImportRecord, InstallRecord, StateFile, find_record_index, record_owned_path};
-use crate::util::{ensure_child_path, flatten_id, now_rfc3339};
+use crate::util::{ensure_child_path, install_name, now_rfc3339};
 use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
 use std::collections::HashSet;
@@ -23,11 +23,13 @@ pub fn install_pack(
 
     let install_prefix = &resolved.pack.install_prefix;
     let install_sep = &resolved.pack.install_sep;
+    let install_flatten = resolved.pack.install_flatten;
     let new_paths = build_install_paths(
         &resolved.final_skills,
         sink_path,
         install_prefix,
         install_sep,
+        install_flatten,
     );
 
     if let Some(index) = find_record_index(state, sink_path, &resolved.pack.name) {
@@ -46,7 +48,12 @@ pub fn install_pack(
     }
 
     for skill in &resolved.final_skills {
-        let dest = sink_path.join(install_name(install_prefix, install_sep, &skill.id));
+        let dest = sink_path.join(install_name(
+            install_prefix,
+            install_sep,
+            &skill.id,
+            install_flatten,
+        ));
         if dest.exists() {
             if !record_owned_path(state, sink_path, &resolved.pack.name, &dest) {
                 return Err(eyre!(
@@ -74,6 +81,7 @@ pub fn install_pack(
         pack_file: resolved.pack_file.display().to_string(),
         prefix: install_prefix.clone(),
         sep: install_sep.clone(),
+        flatten: install_flatten,
         imports: resolved
             .imports
             .iter()
@@ -116,19 +124,16 @@ pub fn uninstall_pack(
     Ok(record)
 }
 
-pub fn install_name(prefix: &str, sep: &str, id: &str) -> String {
-    format!("{prefix}{sep}{}", flatten_id(id, sep))
-}
-
 fn build_install_paths(
     skills: &[ResolvedSkill],
     sink_path: &Path,
     prefix: &str,
     sep: &str,
+    flatten: bool,
 ) -> Vec<String> {
     let mut out: Vec<String> = skills
         .iter()
-        .map(|skill| sink_path.join(install_name(prefix, sep, &skill.id)))
+        .map(|skill| sink_path.join(install_name(prefix, sep, &skill.id, flatten)))
         .map(|path| path.display().to_string())
         .collect();
     out.sort();
@@ -158,10 +163,11 @@ fn copy_skill_dir(src: &Path, dest: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::install_name;
+    use crate::util::install_name;
 
     #[test]
     fn install_name_flattens() {
-        assert_eq!(install_name("p", "__", "a/b"), "p__a__b");
+        assert_eq!(install_name("p", "__", "a/b", false), "p__a__b");
+        assert_eq!(install_name("p", "__", "a/b", true), "p__b");
     }
 }

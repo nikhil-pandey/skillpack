@@ -20,6 +20,8 @@ pub struct InstallRecord {
     pub pack_file: String,
     pub prefix: String,
     pub sep: String,
+    #[serde(default)]
+    pub flatten: bool,
     pub imports: Vec<ImportRecord>,
     pub installed_paths: Vec<String>,
     pub installed_at: String,

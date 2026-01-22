@@ -1,6 +1,6 @@
 use crate::config::{load_config, load_config_detail, resolve_sink_path};
 use crate::discover::discover_local_skills;
-use crate::install::{install_name, install_pack, uninstall_pack};
+use crate::install::{install_pack, uninstall_pack};
 use crate::output::{
     ConfigView, ImportView, InstallView, InstalledItem, InstalledView, Output, OutputFormat,
     PackInfo, PackSummary, ShowView, SinkView, UninstallView,
@@ -8,7 +8,7 @@ use crate::output::{
 use crate::pack::{load_pack, resolve_pack_path};
 use crate::resolve::{detect_collisions, resolve_pack};
 use crate::state::{load_state, write_state};
-use crate::util::{discover_repo_root, make_absolute};
+use crate::util::{discover_repo_root, install_name, make_absolute};
 use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
 use clap::{Parser, Subcommand, ValueHint, builder::Styles};
@@ -230,6 +230,7 @@ fn show_pack(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
         &resolved.pack.install_sep,
+        resolved.pack.install_flatten,
     )?;
 
     let pack_info = PackInfo {
@@ -237,6 +238,7 @@ fn show_pack(
         file: pack_path.display().to_string(),
         prefix: resolved.pack.install_prefix.clone(),
         sep: resolved.pack.install_sep.clone(),
+        flatten: resolved.pack.install_flatten,
     };
     let local = resolved
         .local
@@ -261,6 +263,7 @@ fn show_pack(
                 &resolved.pack.install_prefix,
                 &resolved.pack.install_sep,
                 &skill.id,
+                resolved.pack.install_flatten,
             )
         })
         .collect();
@@ -291,6 +294,7 @@ fn install_cmd(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
         &resolved.pack.install_sep,
+        resolved.pack.install_flatten,
     )?;
 
     let mut state = load_state()?;
@@ -316,6 +320,7 @@ fn install_cmd(
             file: pack_path.display().to_string(),
             prefix: resolved.pack.install_prefix.clone(),
             sep: resolved.pack.install_sep.clone(),
+            flatten: resolved.pack.install_flatten,
         },
         sink: agent.to_string(),
         sink_path: sink_path.display().to_string(),

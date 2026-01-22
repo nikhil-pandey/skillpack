@@ -1,8 +1,9 @@
 use assert_fs::prelude::*;
-use skillpack::install::{install_name, install_pack, uninstall_pack};
+use skillpack::install::{install_pack, uninstall_pack};
 use skillpack::pack::Pack;
 use skillpack::resolve::{ResolvedPack, ResolvedSkill, SkillSource};
 use skillpack::state::StateFile;
+use skillpack::util::install_name;
 use std::path::PathBuf;
 
 fn base_pack() -> Pack {
@@ -13,6 +14,7 @@ fn base_pack() -> Pack {
         imports: vec![],
         install_prefix: "demo".to_string(),
         install_sep: "__".to_string(),
+        install_flatten: false,
     }
 }
 
@@ -36,7 +38,7 @@ fn install_errors_on_unowned_dest() {
     skill_dir.create_dir_all().unwrap();
     skill_dir.child("SKILL.md").write_str("x").unwrap();
 
-    let dest = sink.child(install_name("demo", "__", "a/b"));
+    let dest = sink.child(install_name("demo", "__", "a/b", false));
     dest.create_dir_all().unwrap();
 
     let skill = ResolvedSkill {
@@ -82,6 +84,7 @@ fn install_reconciles_old_paths() {
         pack_file: pack_file.path().display().to_string(),
         prefix: "demo".to_string(),
         sep: "__".to_string(),
+        flatten: false,
         imports: vec![],
         installed_paths: vec![old_path.path().display().to_string()],
         installed_at: "2025-01-01T00:00:00Z".to_string(),
@@ -110,6 +113,7 @@ fn uninstall_removes_recorded_paths() {
         pack_file: temp.child("packs/demo.yaml").path().display().to_string(),
         prefix: "demo".to_string(),
         sep: "__".to_string(),
+        flatten: false,
         imports: vec![],
         installed_paths: vec![installed.path().display().to_string()],
         installed_at: "2025-01-01T00:00:00Z".to_string(),
@@ -150,7 +154,7 @@ fn copy_symlink_as_file() {
 
     install_pack(&pack, "codex", sink.path(), &mut state).unwrap();
 
-    let dest = sink.child(install_name("demo", "__", "a/b"));
+    let dest = sink.child(install_name("demo", "__", "a/b", false));
     let link = dest.child("link.txt");
     let meta = std::fs::symlink_metadata(link.path()).unwrap();
     assert!(!meta.file_type().is_symlink());

@@ -20,6 +20,7 @@ pub struct PackInfo {
     pub file: String,
     pub prefix: String,
     pub sep: String,
+    pub flatten: bool,
 }
 
 #[derive(Debug, Serialize)]

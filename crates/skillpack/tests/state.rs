@@ -13,6 +13,7 @@ fn state_round_trip() {
         pack_file: "/tmp/packs/demo.yaml".to_string(),
         prefix: "demo".to_string(),
         sep: "__".to_string(),
+        flatten: false,
         imports: vec![],
         installed_paths: vec!["/tmp/sink/demo__a".to_string()],
         installed_at: "2025-01-01T00:00:00Z".to_string(),

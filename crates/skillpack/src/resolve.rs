@@ -2,6 +2,7 @@ use crate::discover::{Skill, discover_local_skills, discover_remote_skills};
 use crate::git::resolve_repo;
 use crate::pack::{ImportSpec, Pack, load_pack};
 use crate::patterns::PatternSet;
+use crate::util::install_name;
 use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
 use std::collections::HashSet;
@@ -184,13 +185,18 @@ fn apply_excludes(
     Ok(filtered)
 }
 
-pub fn detect_collisions(skills: &[ResolvedSkill], prefix: &str, sep: &str) -> Result<()> {
+pub fn detect_collisions(
+    skills: &[ResolvedSkill],
+    prefix: &str,
+    sep: &str,
+    flatten: bool,
+) -> Result<()> {
     let mut seen = HashSet::new();
     for skill in skills {
-        let name = format!("{prefix}{sep}{}", skill.id.replace('/', sep));
+        let name = install_name(prefix, sep, &skill.id, flatten);
         if !seen.insert(name.clone()) {
             return Err(eyre!("installed folder name collision: {name}")
-                .suggestion("Adjust install.prefix/install.sep or rename skills"));
+                .suggestion("Adjust install.prefix/install.sep/install.flatten or rename skills"));
         }
     }
     Ok(())
@@ -215,7 +221,7 @@ mod tests {
                 source: SkillSource::Local,
             },
         ];
-        let err = detect_collisions(&skills, "p", "__").unwrap_err();
+        let err = detect_collisions(&skills, "p", "__", false).unwrap_err();
         assert!(err.to_string().contains("collision"));
     }
 }

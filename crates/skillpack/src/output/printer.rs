@@ -148,11 +148,17 @@ impl Output {
                     "source".style(self.styles.label()),
                     abbreviate_path(&view.pack.file).style(self.styles.path())
                 ));
+                let flatten = if view.pack.flatten {
+                    format!(" flatten={}", "leaf".style(self.styles.name()))
+                } else {
+                    String::new()
+                };
                 out.push_str(&format!(
-                    "  {} prefix={} sep={}\n",
+                    "  {} prefix={} sep={}{}\n",
                     "install".style(self.styles.label()),
                     view.pack.prefix.style(self.styles.name()),
-                    view.pack.sep.style(self.styles.name())
+                    view.pack.sep.style(self.styles.name()),
+                    flatten
                 ));
                 out.push('\n');
 

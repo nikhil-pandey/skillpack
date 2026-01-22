@@ -109,6 +109,7 @@ exclude:
 install:
   prefix: group-x
   sep: "__"
+  flatten: true # optional; use leaf folder name only
 ```
 
 ---

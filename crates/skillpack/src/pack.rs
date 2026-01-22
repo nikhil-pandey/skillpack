@@ -26,6 +26,7 @@ pub struct ImportSpec {
 pub struct InstallSpec {
     pub prefix: Option<String>,
     pub sep: Option<String>,
+    pub flatten: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +37,7 @@ pub struct Pack {
     pub imports: Vec<ImportSpec>,
     pub install_prefix: String,
     pub install_sep: String,
+    pub install_flatten: bool,
 }
 
 pub fn resolve_pack_path(repo_root: &Path, pack_arg: &str) -> Result<PathBuf> {
@@ -79,6 +81,11 @@ pub fn load_pack(pack_path: &Path) -> Result<Pack> {
         .as_ref()
         .and_then(|i| i.sep.clone())
         .unwrap_or_else(|| "__".to_string());
+    let install_flatten = parsed
+        .install
+        .as_ref()
+        .and_then(|i| i.flatten)
+        .unwrap_or(false);
 
     Ok(Pack {
         name: parsed.name,
@@ -87,6 +94,7 @@ pub fn load_pack(pack_path: &Path) -> Result<Pack> {
         imports: parsed.imports.unwrap_or_default(),
         install_prefix,
         install_sep,
+        install_flatten,
     })
 }
 
@@ -135,5 +143,17 @@ mod tests {
         let loaded = load_pack(pack.path()).unwrap();
         assert_eq!(loaded.install_prefix, "demo");
         assert_eq!(loaded.install_sep, "__");
+        assert!(!loaded.install_flatten);
+    }
+
+    #[test]
+    fn load_pack_flatten_true() {
+        let temp = assert_fs::TempDir::new().unwrap();
+        let pack = temp.child("pack.yaml");
+        pack.write_str("name: demo\ninclude:\n  - general/**\ninstall:\n  flatten: true\n")
+            .unwrap();
+
+        let loaded = load_pack(pack.path()).unwrap();
+        assert!(loaded.install_flatten);
     }
 }
