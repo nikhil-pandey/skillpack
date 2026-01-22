@@ -1,0 +1,6 @@
+name: general
+
+imports:
+  - repo: github.com/intellectronica/agent-skills
+    include:
+      - skills/context7

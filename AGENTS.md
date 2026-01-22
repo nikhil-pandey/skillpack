@@ -1,0 +1,1 @@
+MANDATORY: Before performing any task, read .codex/docs/skillpack.md and other docs in that folder to understand what we're trying to build and what agent skills are.
