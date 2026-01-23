@@ -102,13 +102,14 @@ pub fn resolve_sink_path(
         return make_absolute(path);
     }
     if sink == "custom" {
-        return Err(eyre!("custom sink requires --path")
+        return Err(eyre!("custom agent requires --path")
             .suggestion("Use --path to set the destination folder"));
     }
     config.sinks.get(sink).cloned().ok_or_else(|| {
         let mut names: Vec<String> = config.sinks.keys().cloned().collect();
         names.sort();
-        eyre!("unknown sink: {sink}").suggestion(format!("Available sinks: {}", names.join(", ")))
+        eyre!("unknown agent: {sink}")
+            .suggestion(format!("Available agents: {}", names.join(", ")))
     })
 }
 

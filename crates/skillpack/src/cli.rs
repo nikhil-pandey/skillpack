@@ -86,35 +86,43 @@ enum Commands {
         #[arg(value_name = "PACK")]
         pack: String,
     },
-    #[command(about = "Install a pack into an agent sink")]
+    #[command(about = "Install a pack into an agent destination")]
     Install {
         #[arg(value_name = "PACK")]
         pack: String,
-        #[arg(long = "agent", value_name = "SINK", help = "Target sink name")]
+        #[arg(
+            long = "agent",
+            value_name = "AGENT",
+            help = "Agent target (codex, claude, copilot, cursor, windsurf, custom). Use --path for custom or overrides."
+        )]
         agent: String,
         #[arg(
             long,
             value_hint = ValueHint::DirPath,
-            help = "Override sink path (required for custom)"
+            help = "Override agent destination path (required for custom)"
         )]
         path: Option<PathBuf>,
     },
-    #[command(about = "Uninstall a pack from an agent sink")]
+    #[command(about = "Uninstall a pack from an agent destination")]
     Uninstall {
         #[arg(value_name = "PACK")]
         pack: String,
-        #[arg(long = "agent", value_name = "SINK", help = "Target sink name")]
+        #[arg(
+            long = "agent",
+            value_name = "AGENT",
+            help = "Agent target (codex, claude, copilot, cursor, windsurf, custom). Use --path for custom or overrides."
+        )]
         agent: String,
         #[arg(
             long,
             value_hint = ValueHint::DirPath,
-            help = "Override sink path (required for custom)"
+            help = "Override agent destination path (required for custom)"
         )]
         path: Option<PathBuf>,
     },
     #[command(about = "List installed packs", visible_alias = "installs")]
     Installed {
-        #[arg(long = "agent", value_name = "SINK")]
+        #[arg(long = "agent", value_name = "AGENT")]
         agent: Option<String>,
     },
     #[command(about = "Show sink configuration", visible_alias = "sinks")]
