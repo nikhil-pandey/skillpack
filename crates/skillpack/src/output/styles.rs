@@ -8,9 +8,8 @@ pub(crate) struct Styles {
 
 impl Styles {
     pub(crate) fn new(no_color: bool) -> Self {
-        let use_color = !no_color
-            && std::io::stdout().is_terminal()
-            && std::env::var_os("NO_COLOR").is_none();
+        let use_color =
+            !no_color && std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
         Self { use_color }
     }
 

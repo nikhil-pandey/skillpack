@@ -52,8 +52,7 @@ fn show_outputs_final_names() {
         .arg("--cache-dir")
         .arg(temp.child("cache").path());
     cmd.assert().success().stdout(
-        predicate::str::contains("Installs as")
-            .and(predicate::str::contains("demo__alpha")),
+        predicate::str::contains("Installs as").and(predicate::str::contains("demo__alpha")),
     );
 }
 

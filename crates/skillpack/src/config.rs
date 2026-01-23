@@ -1,6 +1,6 @@
 use crate::util::make_absolute;
-use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -108,8 +108,7 @@ pub fn resolve_sink_path(
     config.sinks.get(sink).cloned().ok_or_else(|| {
         let mut names: Vec<String> = config.sinks.keys().cloned().collect();
         names.sort();
-        eyre!("unknown sink: {sink}")
-            .suggestion(format!("Available sinks: {}", names.join(", ")))
+        eyre!("unknown sink: {sink}").suggestion(format!("Available sinks: {}", names.join(", ")))
     })
 }
 

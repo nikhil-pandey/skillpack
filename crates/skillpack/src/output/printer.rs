@@ -1,6 +1,8 @@
 use super::helpers::{abbreviate_path, short_hash};
 use super::styles::Styles;
-use super::types::{ConfigView, InstallView, InstalledView, OutputFormat, PackSummary, ShowView, UninstallView};
+use super::types::{
+    ConfigView, InstallView, InstalledView, OutputFormat, PackSummary, ShowView, UninstallView,
+};
 use owo_colors::OwoColorize;
 use serde::Serialize;
 use std::io::{self, Write};
@@ -34,10 +36,7 @@ impl Output {
             }
             OutputFormat::Pretty => {
                 let mut out = String::new();
-                out.push_str(&format!(
-                    "{}\n\n",
-                    "Skills".style(self.styles.header())
-                ));
+                out.push_str(&format!("{}\n\n", "Skills".style(self.styles.header())));
                 if skills.is_empty() {
                     out.push_str(&format!(
                         "  {}\n",
@@ -50,10 +49,7 @@ impl Output {
                     ));
                 } else {
                     for skill in skills {
-                        out.push_str(&format!(
-                            "  {}\n",
-                            skill.style(self.styles.name())
-                        ));
+                        out.push_str(&format!("  {}\n", skill.style(self.styles.name())));
                     }
                 }
                 out.push('\n');
@@ -78,10 +74,7 @@ impl Output {
             }
             OutputFormat::Pretty => {
                 let mut out = String::new();
-                out.push_str(&format!(
-                    "{}\n\n",
-                    "Packs".style(self.styles.header())
-                ));
+                out.push_str(&format!("{}\n\n", "Packs".style(self.styles.header())));
                 if packs.is_empty() {
                     out.push_str(&format!(
                         "  {}\n",
@@ -205,9 +198,17 @@ impl Output {
                         // Skills under this import
                         for (j, skill) in import.skills.iter().enumerate() {
                             let skill_prefix = if j == import.skills.len() - 1 {
-                                if is_last_import { "   └─" } else { "│  └─" }
+                                if is_last_import {
+                                    "   └─"
+                                } else {
+                                    "│  └─"
+                                }
                             } else {
-                                if is_last_import { "   ├─" } else { "│  ├─" }
+                                if is_last_import {
+                                    "   ├─"
+                                } else {
+                                    "│  ├─"
+                                }
                             };
                             out.push_str(&format!(
                                 "  {} {}\n",
@@ -371,10 +372,7 @@ impl Output {
             }
             OutputFormat::Pretty => {
                 let mut out = String::new();
-                out.push_str(&format!(
-                    "{}\n\n",
-                    "Installed".style(self.styles.header())
-                ));
+                out.push_str(&format!("{}\n\n", "Installed".style(self.styles.header())));
 
                 if view.installs.is_empty() {
                     out.push_str(&format!(
@@ -391,8 +389,7 @@ impl Output {
                             "  {} {} {} {}\n",
                             record.pack.style(self.styles.name()),
                             format!("→ {}", record.sink).style(self.styles.path()),
-                            format!("({} skills)", record.skill_count)
-                                .style(self.styles.count()),
+                            format!("({} skills)", record.skill_count).style(self.styles.count()),
                             record.installed_at.as_str().style(self.styles.path())
                         ));
                         out.push_str(&format!(
@@ -422,10 +419,7 @@ impl Output {
             }
             OutputFormat::Pretty => {
                 let mut out = String::new();
-                out.push_str(&format!(
-                    "{}\n\n",
-                    "Config".style(self.styles.header())
-                ));
+                out.push_str(&format!("{}\n\n", "Config".style(self.styles.header())));
 
                 out.push_str(&format!(
                     "  {} {}\n\n",

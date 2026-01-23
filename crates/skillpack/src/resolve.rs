@@ -3,8 +3,8 @@ use crate::git::resolve_repo;
 use crate::pack::{ImportSpec, Pack, load_pack};
 use crate::patterns::PatternSet;
 use crate::util::install_name;
-use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -39,11 +39,7 @@ pub struct ResolvedPack {
     pub final_skills: Vec<ResolvedSkill>,
 }
 
-pub fn resolve_pack(
-    repo_root: &Path,
-    pack_path: &Path,
-    cache_dir: &Path,
-) -> Result<ResolvedPack> {
+pub fn resolve_pack(repo_root: &Path, pack_path: &Path, cache_dir: &Path) -> Result<ResolvedPack> {
     let pack = load_pack(pack_path)?;
     debug!(pack = %pack_path.display(), "resolve pack");
     let local_skills = discover_local_skills(repo_root)?;
@@ -117,11 +113,7 @@ fn resolve_import(cache_dir: &Path, import: &ImportSpec) -> Result<ResolvedImpor
     })
 }
 
-fn select_included(
-    skills: &[Skill],
-    include: &[String],
-    label: &str,
-) -> Result<Vec<Skill>> {
+fn select_included(skills: &[Skill], include: &[String], label: &str) -> Result<Vec<Skill>> {
     let ids: Vec<String> = skills.iter().map(|s| s.id.clone()).collect();
     let matcher = PatternSet::new(include)?;
     let counts = matcher.match_count_per_pattern(&ids);

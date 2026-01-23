@@ -1,5 +1,5 @@
-use color_eyre::eyre::{Result, WrapErr, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, WrapErr, eyre};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
@@ -100,8 +100,9 @@ pub fn load_pack(pack_path: &Path) -> Result<Pack> {
 
 fn validate_pack(pack: &PackFile) -> Result<()> {
     if pack.name.trim().is_empty() {
-        return Err(eyre!("pack name is required")
-            .suggestion("Set name: <pack-name> in the pack file"));
+        return Err(
+            eyre!("pack name is required").suggestion("Set name: <pack-name> in the pack file")
+        );
     }
     let has_local = !pack.include.is_empty();
     let has_imports = pack
@@ -116,8 +117,9 @@ fn validate_pack(pack: &PackFile) -> Result<()> {
     if let Some(imports) = &pack.imports {
         for import in imports {
             if import.repo.trim().is_empty() {
-                return Err(eyre!("import repo is required")
-                    .suggestion("Set repo: <git-url> in imports"));
+                return Err(
+                    eyre!("import repo is required").suggestion("Set repo: <git-url> in imports")
+                );
             }
             if import.include.is_empty() {
                 return Err(eyre!("import include must be non-empty")

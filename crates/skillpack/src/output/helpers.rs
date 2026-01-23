@@ -1,4 +1,4 @@
-use std::path::{Path, MAIN_SEPARATOR};
+use std::path::{MAIN_SEPARATOR, Path};
 
 /// Abbreviate home directory to ~
 pub(crate) fn abbreviate_path(path: &str) -> String {

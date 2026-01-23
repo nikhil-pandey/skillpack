@@ -1,5 +1,5 @@
-use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use globset::{Glob, GlobBuilder, GlobMatcher, GlobSet, GlobSetBuilder};
 
 #[derive(Debug)]

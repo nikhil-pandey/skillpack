@@ -1,8 +1,8 @@
 use crate::resolve::{ResolvedPack, ResolvedSkill};
 use crate::state::{ImportRecord, InstallRecord, StateFile, find_record_index, record_owned_path};
 use crate::util::{ensure_child_path, install_name, now_rfc3339};
-use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;

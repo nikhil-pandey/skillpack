@@ -9,10 +9,10 @@ use crate::pack::{load_pack, resolve_pack_path};
 use crate::resolve::{detect_collisions, resolve_pack};
 use crate::state::{load_state, write_state};
 use crate::util::{discover_repo_root, install_name, make_absolute};
-use color_eyre::eyre::{Result, eyre};
-use color_eyre::Section as _;
-use clap::{Parser, Subcommand, ValueHint, builder::Styles};
 use clap::builder::styling::{AnsiColor, Effects};
+use clap::{Parser, Subcommand, ValueHint, builder::Styles};
+use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use std::collections::HashSet;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
@@ -132,7 +132,9 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
     match cli.command {
         Commands::Skills => list_skills(&resolve_repo_root(cli)?, output),
         Commands::Packs => list_packs(&resolve_repo_root(cli)?, output),
-        Commands::Show { ref pack } => show_pack(&resolve_repo_root(cli)?, &cache_dir, pack, output),
+        Commands::Show { ref pack } => {
+            show_pack(&resolve_repo_root(cli)?, &cache_dir, pack, output)
+        }
         Commands::Install {
             ref pack,
             ref agent,
@@ -183,14 +185,12 @@ fn list_skills(repo_root: &Path, output: &Output) -> Result<()> {
 fn list_packs(repo_root: &Path, output: &Output) -> Result<()> {
     let packs_dir = repo_root.join("packs");
     if !packs_dir.exists() {
-        return Err(eyre!(
-            "packs directory not found: {}",
-            packs_dir.display()
-        )
-        .suggestion(
-            "Auto-discovery checks current/parent dirs for skills/ or packs/. \
+        return Err(
+            eyre!("packs directory not found: {}", packs_dir.display()).suggestion(
+                "Auto-discovery checks current/parent dirs for skills/ or packs/. \
 Use --root <repo> to override",
-        ));
+            ),
+        );
     }
     let mut packs = Vec::new();
     for entry in std::fs::read_dir(packs_dir)? {
@@ -218,12 +218,7 @@ Use --root <repo> to override",
     Ok(())
 }
 
-fn show_pack(
-    repo_root: &Path,
-    cache_dir: &Path,
-    pack_arg: &str,
-    output: &Output,
-) -> Result<()> {
+fn show_pack(repo_root: &Path, cache_dir: &Path, pack_arg: &str, output: &Output) -> Result<()> {
     let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
     let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
     detect_collisions(
@@ -330,12 +325,7 @@ fn install_cmd(
         installed_paths: record.installed_paths.clone(),
     };
     output.print_install(&view)?;
-    debug!(
-        added,
-        updated,
-        removed,
-        "install summary"
-    );
+    debug!(added, updated, removed, "install summary");
     for path in &record.installed_paths {
         debug!(path = %path, "installed path");
     }

@@ -1,5 +1,5 @@
-use color_eyre::eyre::{Result, eyre};
 use blake3::Hasher;
+use color_eyre::eyre::{Result, eyre};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::debug;
@@ -12,11 +12,7 @@ pub struct ResolvedRepo {
     pub path: PathBuf,
 }
 
-pub fn resolve_repo(
-    cache_dir: &Path,
-    repo: &str,
-    ref_name: Option<&str>,
-) -> Result<ResolvedRepo> {
+pub fn resolve_repo(cache_dir: &Path, repo: &str, ref_name: Option<&str>) -> Result<ResolvedRepo> {
     std::fs::create_dir_all(cache_dir)?;
     let expanded = expand_repo(repo);
     let repo_dir = cache_dir.join(hash_repo(&expanded));

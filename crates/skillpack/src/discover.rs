@@ -1,6 +1,6 @@
 use crate::util::path_to_id;
-use color_eyre::eyre::{Result, eyre};
 use color_eyre::Section as _;
+use color_eyre::eyre::{Result, eyre};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
