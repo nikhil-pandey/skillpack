@@ -11,7 +11,7 @@ use crate::resolve::{detect_collisions, resolve_pack};
 use crate::state::{load_state, write_state};
 use crate::util::{discover_repo_root, install_name, make_absolute};
 use clap::builder::styling::{AnsiColor, Effects};
-use clap::{Parser, Subcommand, ValueHint, builder::Styles};
+use clap::{Args, Parser, Subcommand, ValueHint, builder::Styles};
 use color_eyre::Section as _;
 use color_eyre::eyre::{Result, eyre};
 use std::collections::HashSet;
@@ -38,7 +38,7 @@ const fn help_styles() -> Styles {
     version,
     arg_required_else_help = true,
     styles = help_styles(),
-    after_help = "Examples:\n  sp skills\n  sp packs\n  sp show general\n  sp install general --agent codex\n  sp installed\n\nUse --format plain for script-friendly output."
+    after_help = "Examples:\n  sp skills\n  sp packs\n  sp show general\n  sp install general --codex\n  sp install team --codex --claude\n  sp installed\n\nUse --format plain for script-friendly output."
 )]
 pub struct Cli {
     #[arg(
@@ -72,6 +72,22 @@ pub struct Cli {
     command: Commands,
 }
 
+#[derive(Args, Debug, Default)]
+struct AgentTargets {
+    #[arg(long, help = "Target Codex")]
+    codex: bool,
+    #[arg(long, help = "Target Claude")]
+    claude: bool,
+    #[arg(long, help = "Target Copilot")]
+    copilot: bool,
+    #[arg(long, help = "Target Cursor")]
+    cursor: bool,
+    #[arg(long, help = "Target Windsurf")]
+    windsurf: bool,
+    #[arg(long, help = "Target custom path (requires --path)")]
+    custom: bool,
+}
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     #[command(about = "List local skills under ./skills", visible_alias = "list")]
@@ -90,12 +106,8 @@ enum Commands {
     Install {
         #[arg(value_name = "PACK")]
         pack: String,
-        #[arg(
-            long = "agent",
-            value_name = "AGENT",
-            help = "Agent target (codex, claude, copilot, cursor, windsurf, custom). Use --path for custom or overrides."
-        )]
-        agent: String,
+        #[command(flatten)]
+        targets: AgentTargets,
         #[arg(
             long,
             value_hint = ValueHint::DirPath,
@@ -107,12 +119,8 @@ enum Commands {
     Uninstall {
         #[arg(value_name = "PACK")]
         pack: String,
-        #[arg(
-            long = "agent",
-            value_name = "AGENT",
-            help = "Agent target (codex, claude, copilot, cursor, windsurf, custom). Use --path for custom or overrides."
-        )]
-        agent: String,
+        #[command(flatten)]
+        targets: AgentTargets,
         #[arg(
             long,
             value_hint = ValueHint::DirPath,
@@ -122,8 +130,14 @@ enum Commands {
     },
     #[command(about = "List installed packs", visible_alias = "installs")]
     Installed {
-        #[arg(long = "agent", value_name = "AGENT")]
-        agent: Option<String>,
+        #[command(flatten)]
+        targets: AgentTargets,
+        #[arg(
+            long,
+            value_hint = ValueHint::DirPath,
+            help = "Override agent destination path (required for custom)"
+        )]
+        path: Option<PathBuf>,
     },
     #[command(about = "Show sink configuration", visible_alias = "sinks")]
     Config,
@@ -149,28 +163,30 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
         }
         Commands::Install {
             ref pack,
-            ref agent,
+            ref targets,
             ref path,
         } => install_cmd(
             &resolve_repo_root(cli)?,
             &cache_dir,
             pack,
-            agent,
+            targets,
             path.as_deref(),
             output,
         ),
         Commands::Uninstall {
             ref pack,
-            ref agent,
+            ref targets,
             ref path,
         } => uninstall_cmd(
             &resolve_repo_root(cli)?,
             pack,
-            agent,
+            targets,
             path.as_deref(),
             output,
         ),
-        Commands::Installed { ref agent } => installed_cmd(agent.as_deref(), output),
+        Commands::Installed { ref targets, ref path } => {
+            installed_cmd(targets, path.as_deref(), output)
+        }
         Commands::Config => config_cmd(output),
     }
 }
@@ -262,6 +278,53 @@ fn read_packs(packs_dir: &Path, repo_root: Option<&Path>) -> Result<Vec<PackSumm
     Ok(packs)
 }
 
+fn collect_agents(targets: &AgentTargets) -> Vec<String> {
+    let mut agents = Vec::new();
+    if targets.codex {
+        agents.push("codex".to_string());
+    }
+    if targets.claude {
+        agents.push("claude".to_string());
+    }
+    if targets.copilot {
+        agents.push("copilot".to_string());
+    }
+    if targets.cursor {
+        agents.push("cursor".to_string());
+    }
+    if targets.windsurf {
+        agents.push("windsurf".to_string());
+    }
+    if targets.custom {
+        agents.push("custom".to_string());
+    }
+    let mut seen = HashSet::new();
+    agents.retain(|agent| seen.insert(agent.clone()));
+    agents
+}
+
+fn require_agents(targets: &AgentTargets) -> Result<Vec<String>> {
+    let agents = collect_agents(targets);
+    if agents.is_empty() {
+        return Err(eyre!("no agent targets specified").suggestion(
+            "Use --codex/--claude/--copilot/--cursor/--windsurf/--custom",
+        ));
+    }
+    Ok(agents)
+}
+
+fn validate_agent_selection(agents: &[String], path_override: Option<&Path>) -> Result<()> {
+    if agents.iter().any(|agent| agent == "custom") && agents.len() > 1 {
+        return Err(eyre!("custom agent cannot be combined with other targets")
+            .suggestion("Run separate installs per agent when using --custom"));
+    }
+    if path_override.is_some() && agents.len() != 1 {
+        return Err(eyre!("--path can only be used with a single agent target")
+            .suggestion("Run installs separately when overriding destinations"));
+    }
+    Ok(())
+}
+
 fn show_pack(repo_root: &Path, cache_dir: &Path, pack_arg: &str, output: &Output) -> Result<()> {
     let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
     let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
@@ -320,13 +383,14 @@ fn install_cmd(
     repo_root: &Path,
     cache_dir: &Path,
     pack_arg: &str,
-    agent: &str,
+    targets: &AgentTargets,
     path_override: Option<&Path>,
     output: &Output,
 ) -> Result<()> {
     let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
     let config = load_config()?;
-    let sink_path = resolve_sink_path(&config, agent, path_override)?;
+    let agents = require_agents(targets)?;
+    validate_agent_selection(&agents, path_override)?;
 
     let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
     detect_collisions(
@@ -337,41 +401,45 @@ fn install_cmd(
     )?;
 
     let mut state = load_state()?;
-    let old_paths = state
-        .installs
-        .iter()
-        .find(|record| {
-            record.sink_path == sink_path.display().to_string() && record.pack == resolved.pack.name
-        })
-        .map(|record| record.installed_paths.clone())
-        .unwrap_or_default();
-    let record = install_pack(&resolved, agent, &sink_path, &mut state)?;
-    write_state(&state)?;
+    for agent in &agents {
+        let sink_path = resolve_sink_path(&config, agent, path_override)?;
+        let old_paths = state
+            .installs
+            .iter()
+            .find(|record| {
+                record.sink_path == sink_path.display().to_string()
+                    && record.pack == resolved.pack.name
+            })
+            .map(|record| record.installed_paths.clone())
+            .unwrap_or_default();
+        let record = install_pack(&resolved, agent, &sink_path, &mut state)?;
+        write_state(&state)?;
 
-    let old_set: HashSet<&str> = old_paths.iter().map(String::as_str).collect();
-    let new_set: HashSet<&str> = record.installed_paths.iter().map(String::as_str).collect();
-    let added = new_set.difference(&old_set).count();
-    let removed = old_set.difference(&new_set).count();
-    let updated = new_set.intersection(&old_set).count();
-    let view = InstallView {
-        pack: PackInfo {
-            name: resolved.pack.name.clone(),
-            file: pack_path.display().to_string(),
-            prefix: resolved.pack.install_prefix.clone(),
-            sep: resolved.pack.install_sep.clone(),
-            flatten: resolved.pack.install_flatten,
-        },
-        sink: agent.to_string(),
-        sink_path: sink_path.display().to_string(),
-        added,
-        updated,
-        removed,
-        installed_paths: record.installed_paths.clone(),
-    };
-    output.print_install(&view)?;
-    debug!(added, updated, removed, "install summary");
-    for path in &record.installed_paths {
-        debug!(path = %path, "installed path");
+        let old_set: HashSet<&str> = old_paths.iter().map(String::as_str).collect();
+        let new_set: HashSet<&str> = record.installed_paths.iter().map(String::as_str).collect();
+        let added = new_set.difference(&old_set).count();
+        let removed = old_set.difference(&new_set).count();
+        let updated = new_set.intersection(&old_set).count();
+        let view = InstallView {
+            pack: PackInfo {
+                name: resolved.pack.name.clone(),
+                file: pack_path.display().to_string(),
+                prefix: resolved.pack.install_prefix.clone(),
+                sep: resolved.pack.install_sep.clone(),
+                flatten: resolved.pack.install_flatten,
+            },
+            sink: agent.to_string(),
+            sink_path: sink_path.display().to_string(),
+            added,
+            updated,
+            removed,
+            installed_paths: record.installed_paths.clone(),
+        };
+        output.print_install(&view)?;
+        debug!(agent, added, updated, removed, "install summary");
+        for path in &record.installed_paths {
+            debug!(agent, path = %path, "installed path");
+        }
     }
     Ok(())
 }
@@ -379,7 +447,7 @@ fn install_cmd(
 fn uninstall_cmd(
     repo_root: &Path,
     pack_arg: &str,
-    agent: &str,
+    targets: &AgentTargets,
     path_override: Option<&Path>,
     output: &Output,
 ) -> Result<()> {
@@ -390,37 +458,48 @@ fn uninstall_cmd(
         pack_arg.to_string()
     };
     let config = load_config()?;
-    let sink_path = resolve_sink_path(&config, agent, path_override)?;
+    let agents = require_agents(targets)?;
+    validate_agent_selection(&agents, path_override)?;
 
     let mut state = load_state()?;
-    let record = uninstall_pack(&mut state, &sink_path, &pack_name)?;
-    write_state(&state)?;
+    for agent in &agents {
+        let sink_path = resolve_sink_path(&config, agent, path_override)?;
+        let record = uninstall_pack(&mut state, &sink_path, &pack_name)?;
+        write_state(&state)?;
 
-    let view = UninstallView {
-        pack: pack_name,
-        sink: agent.to_string(),
-        sink_path: sink_path.display().to_string(),
-        removed: record.installed_paths.len(),
-    };
-    output.print_uninstall(&view)?;
+        let view = UninstallView {
+            pack: pack_name.clone(),
+            sink: agent.to_string(),
+            sink_path: sink_path.display().to_string(),
+            removed: record.installed_paths.len(),
+        };
+        output.print_uninstall(&view)?;
+    }
     Ok(())
 }
 
-fn installed_cmd(agent: Option<&str>, output: &Output) -> Result<()> {
+fn installed_cmd(targets: &AgentTargets, path_override: Option<&Path>, output: &Output) -> Result<()> {
     let config = load_config()?;
     let state = load_state()?;
 
-    let sink_filter = if let Some(agent) = agent {
-        Some(resolve_sink_path(&config, agent, None)?)
-    } else {
+    let agents = collect_agents(targets);
+    validate_agent_selection(&agents, path_override)?;
+    let sink_filters: Option<HashSet<String>> = if agents.is_empty() {
         None
+    } else {
+        let mut filters = HashSet::new();
+        for agent in &agents {
+            let sink_path = resolve_sink_path(&config, agent, path_override)?;
+            filters.insert(sink_path.display().to_string());
+        }
+        Some(filters)
     };
     let mut installs: Vec<InstalledItem> = state
         .installs
         .into_iter()
         .filter(|record| {
-            if let Some(ref sink_path) = sink_filter {
-                return record.sink_path == sink_path.display().to_string();
+            if let Some(ref filters) = sink_filters {
+                return filters.contains(&record.sink_path);
             }
             true
         })

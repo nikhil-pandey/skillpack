@@ -86,8 +86,7 @@ fn install_hides_zero_counters() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
     cmd.arg("install")
         .arg("demo")
-        .arg("--agent")
-        .arg("custom")
+        .arg("--custom")
         .arg("--path")
         .arg(sink.path())
         .arg("--root")

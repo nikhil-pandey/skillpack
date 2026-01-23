@@ -35,13 +35,13 @@ sp packs
 sp show general
 
 # install into an agent
-sp install general --agent codex
+sp install general --codex
 
 # see what's installed
 sp installed
 
 # uninstall
-sp uninstall general --agent codex
+sp uninstall general --codex
 ```
 
 Machine-friendly output:
@@ -127,13 +127,13 @@ Built-in agents map to default skill directories:
 Install to a built-in:
 
 ```bash
-sp install group-x --agent codex
+sp install group-x --codex
 ```
 
 Custom destination:
 
 ```bash
-sp install group-x --agent custom --path /tmp/skills
+sp install group-x --custom --path /tmp/skills
 ```
 
 View effective agent paths (defaults + overrides):
@@ -149,27 +149,25 @@ sp config
 One pack per role:
 
 ```bash
-sp install daily --agent codex
-sp install pr-review --agent codex
-sp install infra --agent codex
+sp install daily --codex
+sp install pr-review --codex
+sp install infra --codex
 ```
 
 Same pack across agents:
 
 ```bash
-sp install team --agent codex
-sp install team --agent claude
-sp install team --agent copilot
+sp install team --codex --claude --copilot
 ```
 
 Update behavior (re-run install):
 
 ```bash
-sp install team --agent codex
+sp install team --codex
 ```
 
 Remove a pack:
 
 ```bash
-sp uninstall team --agent codex
+sp uninstall team --codex
 ```

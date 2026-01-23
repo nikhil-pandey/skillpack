@@ -381,7 +381,7 @@ impl Output {
                     ));
                     out.push_str(&format!(
                         "  {}\n",
-                        "Run: sp install <pack> --agent <agent>".style(self.styles.path())
+                        "Run: sp install <pack> --codex".style(self.styles.path())
                     ));
                 } else {
                     for record in &view.installs {
