@@ -321,9 +321,23 @@ fn validate_agent_selection(agents: &[String], path_override: Option<&Path>) -> 
     Ok(())
 }
 
-fn show_pack(repo_root: &Path, cache_dir: &Path, pack_arg: &str, output: &Output) -> Result<()> {
+fn pack_repo_root(repo_root: &Path, pack_path: &Path) -> Result<PathBuf> {
+    let bundled_root = bundled_repo_root()?;
+    if pack_path.starts_with(&bundled_root) {
+        return Ok(bundled_root);
+    }
+    Ok(repo_root.to_path_buf())
+}
+
+fn resolve_pack_context(repo_root: &Path, pack_arg: &str) -> Result<(PathBuf, PathBuf)> {
     let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
-    let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
+    let pack_root = pack_repo_root(repo_root, &pack_path)?;
+    Ok((pack_path, pack_root))
+}
+
+fn show_pack(repo_root: &Path, cache_dir: &Path, pack_arg: &str, output: &Output) -> Result<()> {
+    let (pack_path, pack_root) = resolve_pack_context(repo_root, pack_arg)?;
+    let resolved = resolve_pack(&pack_root, &pack_path, cache_dir)?;
     detect_collisions(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
@@ -383,12 +397,12 @@ fn install_cmd(
     path_override: Option<&Path>,
     output: &Output,
 ) -> Result<()> {
-    let pack_path = make_absolute(&resolve_pack_path(repo_root, pack_arg)?)?;
+    let (pack_path, pack_root) = resolve_pack_context(repo_root, pack_arg)?;
     let config = load_config()?;
     let agents = require_agents(targets)?;
     validate_agent_selection(&agents, path_override)?;
 
-    let resolved = resolve_pack(repo_root, &pack_path, cache_dir)?;
+    let resolved = resolve_pack(&pack_root, &pack_path, cache_dir)?;
     detect_collisions(
         &resolved.final_skills,
         &resolved.pack.install_prefix,
