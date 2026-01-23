@@ -2,6 +2,19 @@ use assert_cmd::Command;
 use assert_fs::prelude::*;
 use predicates::prelude::*;
 
+fn setup_bundled_repo(temp: &assert_fs::TempDir) -> assert_fs::fixture::ChildPath {
+    let bundled_root = temp.child(format!(".skillpack/bundled/{}", env!("CARGO_PKG_VERSION")));
+    bundled_root
+        .child("skills/alpha/SKILL.md")
+        .write_str("x")
+        .unwrap();
+    bundled_root
+        .child("packs/demo.yaml")
+        .write_str("name: demo\ninclude:\n  - alpha/**\n")
+        .unwrap();
+    bundled_root
+}
+
 #[test]
 fn list_outputs_skill_ids() {
     let temp = assert_fs::TempDir::new().unwrap();
@@ -76,6 +89,25 @@ fn show_outputs_final_names() {
 }
 
 #[test]
+fn show_outputs_final_names_for_bundled_pack() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    setup_bundled_repo(&temp);
+    let work = temp.child("work");
+    work.create_dir_all().unwrap();
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("show")
+        .arg("demo")
+        .current_dir(work.path())
+        .arg("--cache-dir")
+        .arg(temp.child("cache").path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success().stdout(
+        predicate::str::contains("Installs as").and(predicate::str::contains("demo__alpha")),
+    );
+}
+
+#[test]
 fn install_hides_zero_counters() {
     let temp = assert_fs::TempDir::new().unwrap();
     temp.child("skills/alpha/SKILL.md").write_str("x").unwrap();
@@ -102,6 +134,31 @@ fn install_hides_zero_counters() {
             .and(predicate::str::contains("1"))
             .and(predicate::str::contains("updated").not())
             .and(predicate::str::contains("removed").not()),
+    );
+}
+
+#[test]
+fn install_bundled_pack() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    setup_bundled_repo(&temp);
+    let sink = temp.child("sink");
+    sink.create_dir_all().unwrap();
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("install")
+        .arg("demo")
+        .arg("--custom")
+        .arg("--path")
+        .arg(sink.path())
+        .arg("--cache-dir")
+        .arg(temp.child("cache").path())
+        .env("HOME", temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success().stdout(
+        predicate::str::contains("Installed")
+            .and(predicate::str::contains("demo"))
+            .and(predicate::str::contains("added"))
+            .and(predicate::str::contains("1")),
     );
 }
 
