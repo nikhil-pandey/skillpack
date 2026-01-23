@@ -203,12 +203,10 @@ impl Output {
                                 } else {
                                     "│  └─"
                                 }
+                            } else if is_last_import {
+                                "   ├─"
                             } else {
-                                if is_last_import {
-                                    "   ├─"
-                                } else {
-                                    "│  ├─"
-                                }
+                                "│  ├─"
                             };
                             out.push_str(&format!(
                                 "  {} {}\n",
