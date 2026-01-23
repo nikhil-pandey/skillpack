@@ -1,4 +1,10 @@
-name: general
+name: skillpack
+
+include:
+  - "**"
+
+install:
+  flatten: true
 
 imports:
   - repo: github.com/intellectronica/agent-skills

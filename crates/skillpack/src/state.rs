@@ -1,5 +1,5 @@
 use crate::config::{ensure_config_dir, state_path};
-use anyhow::{Result, anyhow};
+use color_eyre::eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::Path;
@@ -20,6 +20,8 @@ pub struct InstallRecord {
     pub pack_file: String,
     pub prefix: String,
     pub sep: String,
+    #[serde(default)]
+    pub flatten: bool,
     pub imports: Vec<ImportRecord>,
     pub installed_paths: Vec<String>,
     pub installed_at: String,
@@ -63,7 +65,7 @@ pub fn write_state(state: &StateFile) -> Result<()> {
 pub fn write_state_at(state: &StateFile, path: &Path) -> Result<()> {
     let dir = path
         .parent()
-        .ok_or_else(|| anyhow!("state directory missing"))?;
+        .ok_or_else(|| eyre!("state directory missing"))?;
     std::fs::create_dir_all(dir)?;
     let mut temp = tempfile::NamedTempFile::new_in(dir)?;
     let data = serde_json::to_vec_pretty(state)?;

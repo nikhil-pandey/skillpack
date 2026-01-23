@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use color_eyre::eyre::{Result, eyre};
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -14,8 +14,16 @@ pub fn path_to_id(path: &Path) -> String {
     out
 }
 
-pub fn flatten_id(id: &str, sep: &str) -> String {
-    id.replace('/', sep)
+pub fn flatten_id(id: &str, sep: &str, flatten: bool) -> String {
+    if flatten {
+        id.rsplit('/').next().unwrap_or(id).to_string()
+    } else {
+        id.replace('/', sep)
+    }
+}
+
+pub fn install_name(prefix: &str, sep: &str, id: &str, flatten: bool) -> String {
+    format!("{prefix}{sep}{}", flatten_id(id, sep, flatten))
 }
 
 pub fn make_absolute(path: &Path) -> Result<PathBuf> {
@@ -48,7 +56,7 @@ pub fn ensure_child_path(root: &Path, candidate: &Path) -> Result<()> {
     if candidate.starts_with(root) {
         Ok(())
     } else {
-        Err(anyhow!(
+        Err(eyre!(
             "refusing to operate outside sink path: {}",
             candidate.display()
         ))

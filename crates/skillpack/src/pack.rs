@@ -1,7 +1,9 @@
-use crate::errors::CliError;
-use anyhow::{Context, Result};
+use color_eyre::Section as _;
+use color_eyre::eyre::{Result, WrapErr, eyre};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+
+use crate::bundled::bundled_pack_path;
 
 #[derive(Debug, Deserialize)]
 struct PackFile {
@@ -26,6 +28,7 @@ pub struct ImportSpec {
 pub struct InstallSpec {
     pub prefix: Option<String>,
     pub sep: Option<String>,
+    pub flatten: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +39,7 @@ pub struct Pack {
     pub imports: Vec<ImportSpec>,
     pub install_prefix: String,
     pub install_sep: String,
+    pub install_flatten: bool,
 }
 
 pub fn resolve_pack_path(repo_root: &Path, pack_arg: &str) -> Result<PathBuf> {
@@ -50,27 +54,27 @@ pub fn resolve_pack_path(repo_root: &Path, pack_arg: &str) -> Result<PathBuf> {
         }
     }
     if pack_arg.ends_with(".yaml") || pack_arg.ends_with(".yml") {
-        return Err(CliError::new(format!("pack file not found: {pack_arg}"))
-            .with_hint("Check the path or run sp packs --root <repo> to list packs")
-            .into());
+        return Err(eyre!("pack file not found: {pack_arg}")
+            .suggestion("Check the path or run sp packs --root <repo> to list packs"));
     }
     let pack_path = repo_root.join("packs").join(format!("{pack_arg}.yaml"));
     if !pack_path.exists() {
-        return Err(CliError::new(format!("pack not found: {pack_arg}"))
-            .with_hint(format!(
-                "Expected {}. Run sp packs --root <repo> to list packs",
-                pack_path.display()
-            ))
-            .into());
+        if let Some(path) = bundled_pack_path(pack_arg)? {
+            return Ok(path);
+        }
+        return Err(eyre!("pack not found: {pack_arg}").suggestion(format!(
+            "Expected {}. Run sp packs --root <repo> to list packs",
+            pack_path.display()
+        )));
     }
     Ok(pack_path)
 }
 
 pub fn load_pack(pack_path: &Path) -> Result<Pack> {
     let content = std::fs::read_to_string(pack_path)
-        .with_context(|| format!("failed to read pack file: {}", pack_path.display()))?;
+        .wrap_err_with(|| format!("failed to read pack file: {}", pack_path.display()))?;
     let parsed: PackFile = serde_yaml::from_str(&content)
-        .with_context(|| format!("failed to parse pack file: {}", pack_path.display()))?;
+        .wrap_err_with(|| format!("failed to parse pack file: {}", pack_path.display()))?;
     validate_pack(&parsed)?;
     let install_prefix = parsed
         .install
@@ -82,6 +86,11 @@ pub fn load_pack(pack_path: &Path) -> Result<Pack> {
         .as_ref()
         .and_then(|i| i.sep.clone())
         .unwrap_or_else(|| "__".to_string());
+    let install_flatten = parsed
+        .install
+        .as_ref()
+        .and_then(|i| i.flatten)
+        .unwrap_or(false);
 
     Ok(Pack {
         name: parsed.name,
@@ -90,14 +99,15 @@ pub fn load_pack(pack_path: &Path) -> Result<Pack> {
         imports: parsed.imports.unwrap_or_default(),
         install_prefix,
         install_sep,
+        install_flatten,
     })
 }
 
 fn validate_pack(pack: &PackFile) -> Result<()> {
     if pack.name.trim().is_empty() {
-        return Err(CliError::new("pack name is required")
-            .with_hint("Set name: <pack-name> in the pack file")
-            .into());
+        return Err(
+            eyre!("pack name is required").suggestion("Set name: <pack-name> in the pack file")
+        );
     }
     let has_local = !pack.include.is_empty();
     let has_imports = pack
@@ -106,21 +116,19 @@ fn validate_pack(pack: &PackFile) -> Result<()> {
         .map(|imports| !imports.is_empty())
         .unwrap_or(false);
     if !has_local && !has_imports {
-        return Err(CliError::new("pack must include local skills or imports")
-            .with_hint("Add include: or imports: to the pack file")
-            .into());
+        return Err(eyre!("pack must include local skills or imports")
+            .suggestion("Add include: or imports: to the pack file"));
     }
     if let Some(imports) = &pack.imports {
         for import in imports {
             if import.repo.trim().is_empty() {
-                return Err(CliError::new("import repo is required")
-                    .with_hint("Set repo: <git-url> in imports")
-                    .into());
+                return Err(
+                    eyre!("import repo is required").suggestion("Set repo: <git-url> in imports")
+                );
             }
             if import.include.is_empty() {
-                return Err(CliError::new("import include must be non-empty")
-                    .with_hint("Add include: patterns under the import")
-                    .into());
+                return Err(eyre!("import include must be non-empty")
+                    .suggestion("Add include: patterns under the import"));
             }
         }
     }
@@ -142,5 +150,17 @@ mod tests {
         let loaded = load_pack(pack.path()).unwrap();
         assert_eq!(loaded.install_prefix, "demo");
         assert_eq!(loaded.install_sep, "__");
+        assert!(!loaded.install_flatten);
+    }
+
+    #[test]
+    fn load_pack_flatten_true() {
+        let temp = assert_fs::TempDir::new().unwrap();
+        let pack = temp.child("pack.yaml");
+        pack.write_str("name: demo\ninclude:\n  - general/**\ninstall:\n  flatten: true\n")
+            .unwrap();
+
+        let loaded = load_pack(pack.path()).unwrap();
+        assert!(loaded.install_flatten);
     }
 }

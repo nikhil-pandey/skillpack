@@ -98,6 +98,7 @@ exclude:
 install:
   prefix: <string>                 # optional; default: pack name
   sep: <string>                    # optional; default: "__"
+  flatten: <bool>                  # optional; default: false (use leaf folder name only)
 ```
 
 ### Patterns
@@ -154,6 +155,7 @@ Where:
 * `install.prefix` default = pack `name`
 * `install.sep` default = `__`
 * `flattened-skill-id` = skill ID with `/` replaced by `install.sep`
+* If `install.flatten` is true, `flattened-skill-id` is the leaf path segment only.
 
 Examples (sep=`__`, prefix=`group-x`):
 
@@ -163,6 +165,10 @@ Examples (sep=`__`, prefix=`group-x`):
 * Remote `tools/agent/skills/general/writing-style` →
 
   * `group-x__tools__agent__skills__general__writing-style/`
+* With `install.flatten: true`, both examples would install as:
+
+  * `group-x__efcore-migrations/`
+  * `group-x__writing-style/`
 
 ### Contents
 

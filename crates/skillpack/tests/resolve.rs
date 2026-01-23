@@ -19,6 +19,6 @@ fn include_pattern_must_match() {
     let pack_path = repo_root.join("packs/demo.yaml");
     let cache_dir = repo_root.join("cache");
 
-    let err = resolve_pack(&repo_root, &pack_path, &cache_dir, false).unwrap_err();
+    let err = resolve_pack(&repo_root, &pack_path, &cache_dir).unwrap_err();
     assert!(err.to_string().contains("matched zero skills"));
 }

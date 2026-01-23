@@ -1,57 +1,104 @@
 # Skillpack CLI 🧰✨
 
-Build, bundle, and install agent skills from a local repo into your favorite coding agent sink.
+Install curated **skill packs** into your coding agent (Codex / Claude / Copilot / Cursor / Windsurf / custom).
 
-## Why?
+A **skill** is a folder containing `SKILL.md`.  
+A **pack** is a YAML file that selects skills (from your repo and optional git imports) and installs them into an agent’s skills directory.
 
-- 📦 Organize skills in `skills/` with leaf-only `SKILL.md`
-- 🎯 Select skills with packs in `packs/*.yaml`
-- 🧩 Install into Codex/Claude/Copilot/custom sinks
-- 🔁 Safe updates with state tracking
+---
+
+## Install
+
+### npm (recommended)
+```bash
+npm install -g @nikhilp0/skillpack
+sp --help
+````
+
+### from source
+
+```bash
+cargo build --release
+./target/release/sp --help
+```
+
+---
 
 ## Quick start 🚀
 
 ```bash
-# List local skills
+# list what's available
 sp skills
-
-# List packs
 sp packs
 
-# Preview pack resolution
-sp show group-x
+# preview what a pack resolves to
+sp show general
 
-# Install pack to Codex
-sp install group-x --agent codex
+# install into an agent
+sp install general --codex
 
-# Uninstall
-sp uninstall group-x --agent codex
-
-# Show installs
+# see what's installed
 sp installed
 
-# Print sink config
-sp config
+# uninstall
+sp uninstall general --codex
 ```
 
-## Repo layout 📁
+Machine-friendly output:
+
+```bash
+sp packs --format plain
+sp show general --format json
+```
+
+---
+
+## Repo layout
 
 ```
 <repo>/
   skills/
     ... nested ok ...
-    <leaf-skill>/
+    <some-skill>/
       SKILL.md
+      (optional extra files)
   packs/
-    <pack-name>.yaml
+    <pack>.yaml
 ```
 
-Skill ID = path from `skills/` using `/`.
+---
 
-## Pack example 🧩
+## Pack files
+
+### Minimal (local-only)
+
+```yaml
+name: general
+include:
+  - general/**
+  - coding/**
+```
+
+### With git imports
+
+```yaml
+name: team
+include:
+  - general/**
+
+imports:
+  - repo: github.com/acme/shared-skills
+    ref: v1.3.0     # optional
+    include:
+      - "**/pr-review"
+      - tools/**
+```
+
+### Optional exclusions + install naming
 
 ```yaml
 name: group-x
+
 include:
   - general/**
   - coding/dotnet/**
@@ -59,81 +106,68 @@ include:
 exclude:
   - "**/experimental/**"
 
-imports:
-  - repo: github.com/acme/shared-skills
-    ref: v1.3.0
-    include:
-      - "**/pr-review"
-      - "**/deploy/**"
-    exclude:
-      - "**/deprecated/**"
-
 install:
   prefix: group-x
   sep: "__"
+  flatten: true # optional; use leaf folder name only
 ```
 
-Remote-only pack:
+---
 
-```yaml
-name: group-remote
-imports:
-  - repo: github.com/acme/shared-skills
-    include:
-      - tools/**
-```
+## Install targets (“agents”)
 
-## Install output 🧱
+Built-in agents map to default skill directories:
 
-Flattened folder name:
+* `codex` → `~/.codex/skills`
+* `claude` → `~/.claude/skills`
+* `copilot` → `~/.copilot/skills`
+* `cursor` → `~/.cursor/skills`
+* `windsurf` → `~/.windsurf/skills`
 
-```
-<install.prefix><install.sep><flattened-skill-id>
-```
-
-Example:
-
-```
-group-x__coding__dotnet__efcore-migrations/
-```
-
-## Sinks ⚓
-
-Built-ins: `codex`, `claude`, `copilot`, `custom`.
-Also: `cursor`, `windsurf`.
-
-Override path per command:
+Install to a built-in:
 
 ```bash
-sp install group-x --agent custom --path /tmp/skills
+sp install group-x --codex
 ```
 
-## Config + state 🗃️
-
-- Config: `~/.skillpack/config.yaml`
-- State: `~/.skillpack/state.json`
-- Override config root: `SKILLPACK_HOME=/path`
-
-## Tips 💡
-
-- Patterns are anchored and case-sensitive.
-- `**` spans path segments; `*` stays inside one segment.
-- At least one of `include` or `imports` is required.
-- Use `--format plain` for script-friendly output.
-- Any include pattern provided that matches zero skills = error.
-- Symlink skill folders ok; `SKILL.md` symlink only allowed when the skill folder is a symlink.
-
-## Build & test 🧪
+Custom destination:
 
 ```bash
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
+sp install group-x --custom --path /tmp/skills
 ```
 
-## Install via npm 📦
+View effective agent paths (defaults + overrides):
 
 ```bash
-npm install -g @nikhilp0/skillpack
-sp --help
+sp config
+```
+
+---
+
+## Typical workflows
+
+One pack per role:
+
+```bash
+sp install daily --codex
+sp install pr-review --codex
+sp install infra --codex
+```
+
+Same pack across agents:
+
+```bash
+sp install team --codex --claude --copilot
+```
+
+Update behavior (re-run install):
+
+```bash
+sp install team --codex
+```
+
+Remove a pack:
+
+```bash
+sp uninstall team --codex
 ```
