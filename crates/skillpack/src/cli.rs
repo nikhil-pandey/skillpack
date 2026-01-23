@@ -184,9 +184,10 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
             path.as_deref(),
             output,
         ),
-        Commands::Installed { ref targets, ref path } => {
-            installed_cmd(targets, path.as_deref(), output)
-        }
+        Commands::Installed {
+            ref targets,
+            ref path,
+        } => installed_cmd(targets, path.as_deref(), output),
         Commands::Config => config_cmd(output),
     }
 }
@@ -206,11 +207,7 @@ fn list_skills(repo_root: &Path, include_bundled: bool, output: &Output) -> Resu
     let mut ids: Vec<String> = Vec::new();
     if include_bundled {
         if repo_root.join("skills").exists() {
-            ids.extend(
-                discover_local_skills(repo_root)?
-                    .into_iter()
-                    .map(|s| s.id),
-            );
+            ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
         }
         let bundled_root = bundled_repo_root()?;
         ids.extend(
@@ -219,11 +216,7 @@ fn list_skills(repo_root: &Path, include_bundled: bool, output: &Output) -> Resu
                 .map(|s| s.id),
         );
     } else {
-        ids.extend(
-            discover_local_skills(repo_root)?
-                .into_iter()
-                .map(|s| s.id),
-        );
+        ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
     }
     let mut unique = HashSet::new();
     ids.retain(|id| unique.insert(id.clone()));
@@ -267,7 +260,11 @@ fn read_packs(packs_dir: &Path, repo_root: Option<&Path>) -> Result<Vec<PackSumm
         }
         let pack = load_pack(&path)?;
         let display_path = match repo_root {
-            Some(root) => path.strip_prefix(root).unwrap_or(&path).display().to_string(),
+            Some(root) => path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string(),
             None => path.display().to_string(),
         };
         packs.push(PackSummary {
@@ -306,9 +303,8 @@ fn collect_agents(targets: &AgentTargets) -> Vec<String> {
 fn require_agents(targets: &AgentTargets) -> Result<Vec<String>> {
     let agents = collect_agents(targets);
     if agents.is_empty() {
-        return Err(eyre!("no agent targets specified").suggestion(
-            "Use --codex/--claude/--copilot/--cursor/--windsurf/--custom",
-        ));
+        return Err(eyre!("no agent targets specified")
+            .suggestion("Use --codex/--claude/--copilot/--cursor/--windsurf/--custom"));
     }
     Ok(agents)
 }
@@ -478,7 +474,11 @@ fn uninstall_cmd(
     Ok(())
 }
 
-fn installed_cmd(targets: &AgentTargets, path_override: Option<&Path>, output: &Output) -> Result<()> {
+fn installed_cmd(
+    targets: &AgentTargets,
+    path_override: Option<&Path>,
+    output: &Output,
+) -> Result<()> {
     let config = load_config()?;
     let state = load_state()?;
 

@@ -1,3 +1,4 @@
+pub mod bundled;
 pub mod cli;
 pub mod config;
 pub mod discover;
@@ -9,4 +10,3 @@ pub mod patterns;
 pub mod resolve;
 pub mod state;
 pub mod util;
-pub mod bundled;

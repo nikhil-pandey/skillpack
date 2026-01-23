@@ -108,8 +108,7 @@ pub fn resolve_sink_path(
     config.sinks.get(sink).cloned().ok_or_else(|| {
         let mut names: Vec<String> = config.sinks.keys().cloned().collect();
         names.sort();
-        eyre!("unknown agent: {sink}")
-            .suggestion(format!("Available agents: {}", names.join(", ")))
+        eyre!("unknown agent: {sink}").suggestion(format!("Available agents: {}", names.join(", ")))
     })
 }
 

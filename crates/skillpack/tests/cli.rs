@@ -50,7 +50,9 @@ fn skills_includes_bundled_with_flag() {
         .arg("--root")
         .arg(temp.path())
         .env("SKILLPACK_HOME", temp.child(".skillpack").path());
-    cmd.assert().success().stdout(predicate::str::contains("github-fix-code-review"));
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("github-fix-code-review"));
 }
 
 #[test]
