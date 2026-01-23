@@ -28,12 +28,29 @@ fn packs_outputs_pack_names() {
         .unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
-    cmd.arg("packs").arg("--root").arg(temp.path());
+    cmd.arg("packs")
+        .arg("--root")
+        .arg(temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
     cmd.assert().success().stdout(
         predicate::str::contains("Packs")
             .and(predicate::str::contains("demo"))
-            .and(predicate::str::contains("other")),
+            .and(predicate::str::contains("other"))
+            .and(predicate::str::contains("skillpack")),
     );
+}
+
+#[test]
+fn skills_includes_bundled_with_flag() {
+    let temp = assert_fs::TempDir::new().unwrap();
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("skills")
+        .arg("--bundled")
+        .arg("--root")
+        .arg(temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success().stdout(predicate::str::contains("github-fix-code-review"));
 }
 
 #[test]

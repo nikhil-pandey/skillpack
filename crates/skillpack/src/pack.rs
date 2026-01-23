@@ -3,6 +3,8 @@ use color_eyre::eyre::{Result, WrapErr, eyre};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
+use crate::bundled::bundled_pack_path;
+
 #[derive(Debug, Deserialize)]
 struct PackFile {
     name: String,
@@ -57,6 +59,9 @@ pub fn resolve_pack_path(repo_root: &Path, pack_arg: &str) -> Result<PathBuf> {
     }
     let pack_path = repo_root.join("packs").join(format!("{pack_arg}.yaml"));
     if !pack_path.exists() {
+        if let Some(path) = bundled_pack_path(pack_arg)? {
+            return Ok(path);
+        }
         return Err(eyre!("pack not found: {pack_arg}").suggestion(format!(
             "Expected {}. Run sp packs --root <repo> to list packs",
             pack_path.display()

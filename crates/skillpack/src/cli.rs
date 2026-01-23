@@ -1,3 +1,4 @@
+use crate::bundled::bundled_repo_root;
 use crate::config::{load_config, load_config_detail, resolve_sink_path};
 use crate::discover::discover_local_skills;
 use crate::install::{install_pack, uninstall_pack};
@@ -74,7 +75,10 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     #[command(about = "List local skills under ./skills", visible_alias = "list")]
-    Skills,
+    Skills {
+        #[arg(long, alias = "all", help = "Include bundled skills")]
+        bundled: bool,
+    },
     #[command(about = "List packs under ./packs")]
     Packs,
     #[command(about = "Show resolved contents of a pack", visible_alias = "pack")]
@@ -130,7 +134,7 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
         None => default_cache_dir()?,
     };
     match cli.command {
-        Commands::Skills => list_skills(&resolve_repo_root(cli)?, output),
+        Commands::Skills { bundled } => list_skills(&resolve_repo_root(cli)?, bundled, output),
         Commands::Packs => list_packs(&resolve_repo_root(cli)?, output),
         Commands::Show { ref pack } => {
             show_pack(&resolve_repo_root(cli)?, &cache_dir, pack, output)
@@ -174,23 +178,58 @@ fn resolve_repo_root(cli: &Cli) -> Result<PathBuf> {
     Ok(cwd)
 }
 
-fn list_skills(repo_root: &Path, output: &Output) -> Result<()> {
-    let skills = discover_local_skills(repo_root)?;
-    let mut ids: Vec<String> = skills.into_iter().map(|s| s.id).collect();
+fn list_skills(repo_root: &Path, include_bundled: bool, output: &Output) -> Result<()> {
+    let mut ids: Vec<String> = Vec::new();
+    if include_bundled {
+        if repo_root.join("skills").exists() {
+            ids.extend(
+                discover_local_skills(repo_root)?
+                    .into_iter()
+                    .map(|s| s.id),
+            );
+        }
+        let bundled_root = bundled_repo_root()?;
+        ids.extend(
+            discover_local_skills(&bundled_root)?
+                .into_iter()
+                .map(|s| s.id),
+        );
+    } else {
+        ids.extend(
+            discover_local_skills(repo_root)?
+                .into_iter()
+                .map(|s| s.id),
+        );
+    }
+    let mut unique = HashSet::new();
+    ids.retain(|id| unique.insert(id.clone()));
     ids.sort();
     output.print_skills(&ids)?;
     Ok(())
 }
 
 fn list_packs(repo_root: &Path, output: &Output) -> Result<()> {
-    let packs_dir = repo_root.join("packs");
+    let mut packs = Vec::new();
+    let bundled_root = bundled_repo_root()?;
+    packs.extend(read_packs(
+        &bundled_root.join("packs"),
+        Some(&bundled_root),
+    )?);
+    packs.extend(read_packs(&repo_root.join("packs"), Some(repo_root))?);
+
+    let mut by_name = std::collections::BTreeMap::new();
+    for pack in packs {
+        by_name.insert(pack.name.clone(), pack);
+    }
+    let mut packs: Vec<PackSummary> = by_name.into_values().collect();
+    packs.sort_by(|a, b| a.name.cmp(&b.name));
+    output.print_packs(&packs)?;
+    Ok(())
+}
+
+fn read_packs(packs_dir: &Path, repo_root: Option<&Path>) -> Result<Vec<PackSummary>> {
     if !packs_dir.exists() {
-        return Err(
-            eyre!("packs directory not found: {}", packs_dir.display()).suggestion(
-                "Auto-discovery checks current/parent dirs for skills/ or packs/. \
-Use --root <repo> to override",
-            ),
-        );
+        return Ok(Vec::new());
     }
     let mut packs = Vec::new();
     for entry in std::fs::read_dir(packs_dir)? {
@@ -203,19 +242,16 @@ Use --root <repo> to override",
             continue;
         }
         let pack = load_pack(&path)?;
-        let display_path = path
-            .strip_prefix(repo_root)
-            .unwrap_or(&path)
-            .display()
-            .to_string();
+        let display_path = match repo_root {
+            Some(root) => path.strip_prefix(root).unwrap_or(&path).display().to_string(),
+            None => path.display().to_string(),
+        };
         packs.push(PackSummary {
             name: pack.name,
             path: display_path,
         });
     }
-    packs.sort_by(|a, b| a.name.cmp(&b.name));
-    output.print_packs(&packs)?;
-    Ok(())
+    Ok(packs)
 }
 
 fn show_pack(repo_root: &Path, cache_dir: &Path, pack_arg: &str, output: &Output) -> Result<()> {
