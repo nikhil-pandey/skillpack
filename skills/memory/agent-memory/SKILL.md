@@ -15,10 +15,15 @@ Durable facts. Verified before use.
 ## Paths
 ```bash
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
-repo_mem="$repo_root/.codex/memories/agent-memory"
-global_mem="$HOME/.codex/memories/agent-memory"
+repo_name="$(basename "$repo_root")"
+repo_mem="$HOME/.agent-memories/repos/$repo_name/agent-memory"
+global_mem="$HOME/.agent-memories/global/agent-memory"
 ```
 If not in git repo: use `global_mem` only.
+Create folders on first write:
+```bash
+mkdir -p "$repo_mem" "$global_mem"
+```
 
 ## Triggers
 - user asks: remember, save, note, recall, check notes, clean up memories
