@@ -1,49 +1,40 @@
 ---
 name: github-fix-code-review
-description: "Address GitHub PR code review comments using gh CLI: collect review/issue comments, judge which are valid, propose a fix plan, and only apply fixes after user approval."
+description: Address GitHub PR review comments using gh CLI scripts to collect threads, triage and plan fixes, and only apply changes after user approval. First confirm repo remote is GitHub; do not use for non-GitHub repos.
 ---
 
-# GitHub Fix Code Review
+# GitHub PR Review
 
-Goal: turn PR review comments into approved fixes.
+## Workflow
 
-Inputs
-- PR number or current branch with PR
-- User approval gate before edits
+1. Collect PR threads.
+   - Run yourself (no sub-agent).
+   - Run from repo root using the skill folder:
+     - `uv run --script <gh-skill-folder>/scripts/gh_pr_threads.py`
+   - Auto-detects repo from gh context and PR id from current branch.
+   - Optional: `--pr-id`, `--repo`, `--file`.
+   - Treat returned threads as active; note what needs action vs already addressed.
 
-Workflow
-1) Identify PR
-- If PR number missing: `gh pr view` (current branch) or `gh pr list`
-- Capture owner/repo: `gh repo view --json nameWithOwner -q .nameWithOwner`
+2. Inspect code for each thread.
+   - Open only the referenced file/line.
+   - Use `rg` for targeted lookups; avoid repo-wide scans.
 
-2) Fetch comments (no URLs in response)
-- Inline review comments: `gh api repos/{owner}/{repo}/pulls/{pr}/comments --paginate`
-- Review summaries: `gh api repos/{owner}/{repo}/pulls/{pr}/reviews --paginate`
-- Issue comments: `gh api repos/{owner}/{repo}/issues/{pr}/comments --paginate`
-- Use `gh pr diff` for context when needed
+3. Gather change context before triage.
+   - Save PR diff to a unique path like `/tmp/gh_pr_diff.<timestamp>.<pid>.txt`:
+     - `gh pr diff <pr-id> > <path>`
+   - Pass that path to sub-agents; if no sub-agents, read it yourself.
+   - Use diff to focus on likely components/languages.
 
-3) Normalize
-- Group by file/line; keep author, body, comment id
-- Mark already-addressed by checking diff/local files
+4. Use sub-agents when available.
+   - Use sub-agents only for comment triage unless user asks otherwise.
+   - Give the same constraints: minimal reads, targeted `rg`, summarize root cause.
+   - Provide diff path + user change intent so they can connect comments to code.
 
-4) Triage
-- Classify each comment: fix | discuss | disagree | already-done | needs-info
-- For disagree: give rationale and proposed reply
-- For needs-info: list the exact question
+5. Propose a plan.
+   - For each thread, say fix vs no-fix and why.
+   - Present plan to user and wait for approval.
 
-5) Plan (before edits)
-- Provide ordered fix list with files/tests
-- Ask user approval to proceed
-
-6) After approval
-- Implement fixes; add regression tests when they fit
-- Run relevant tests or note blockers
-- Report changes + remaining open comments
-
-Output format
-- Table or bullet list per comment: location, summary, classification, action
-- Then plan and approval ask
-
-Guardrails
-- No code changes before explicit approval
-- Minimal diffs; avoid defensive code for impossible cases
+6. After approval, fix everything.
+   - Implement minimal changes.
+   - Add regression tests when it fits.
+   - Run end-to-end verify when possible; if blocked, say what is missing.
