@@ -15,15 +15,16 @@ description: Address GitHub PR review comments using gh CLI scripts to collect t
    - Optional: `--pr-id`, `--repo`, `--file`.
    - Treat returned threads as active; note what needs action vs already addressed.
 
-2. Inspect code for each thread.
-   - Open only the referenced file/line.
-   - Use `rg` for targeted lookups; avoid repo-wide scans.
-
-3. Gather change context before triage.
+2. Gather change context before triage.
    - Save PR diff to a unique path like `/tmp/gh_pr_diff.<timestamp>.<pid>.txt`:
      - `gh pr diff <pr-id> > <path>`
    - Pass that path to sub-agents; if no sub-agents, read it yourself.
    - Use diff to focus on likely components/languages.
+
+3. Inspect code for each thread.
+   - Open only the referenced file/line.
+   - Use `rg` for targeted lookups; avoid repo-wide scans.
+   - Make sure to think about the change intent and the codebase. See if the comment is applicable to other parts of the pull request.
 
 4. Use sub-agents when available.
    - Use sub-agents only for comment triage unless user asks otherwise.
