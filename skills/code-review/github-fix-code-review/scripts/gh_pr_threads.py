@@ -8,10 +8,12 @@ from __future__ import annotations
   ./gh_pr_threads.py
   ./gh_pr_threads.py --pr-id 123
   ./gh_pr_threads.py --repo owner/repo
+  ./gh_pr_threads.py --include-resolved
 
 Behavior:
   - Uses gh CLI to resolve repo + PR from current branch unless flags passed.
   - Filters to comments with file/line context; optional --file filter.
+  - Excludes resolved review threads unless --include-resolved is set.
   - Emits JSON with PR metadata and thread-like groups.
 """
 
@@ -70,23 +72,87 @@ def get_pr_metadata(repo: str, pr_id: int) -> dict:
     return json.loads(raw)
 
 
-def get_comments(repo: str, pr_id: int) -> list[dict]:
-    raw = run(
-        [
+def get_review_threads(repo: str, pr_id: int) -> list[dict]:
+    owner, name = repo.split("/", 1)
+    query = """
+    query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          reviewThreads(first: 100, after: $cursor) {
+            nodes {
+              isResolved
+              path
+              line
+              originalLine
+              startLine
+              originalStartLine
+              comments(first: 100) {
+                nodes {
+                  author {
+                    login
+                  }
+                  createdAt
+                  body
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      }
+    }
+    """
+    threads: list[dict] = []
+    cursor: str | None = None
+    while True:
+        cmd = [
             "gh",
             "api",
-            f"repos/{repo}/pulls/{pr_id}/comments",
-            "--paginate",
+            "graphql",
+            "-f",
+            f"query={query}",
+            "-F",
+            f"owner={owner}",
+            "-F",
+            f"name={name}",
+            "-F",
+            f"number={pr_id}",
         ]
-    )
-    return json.loads(raw)
+        if cursor:
+            cmd.extend(["-F", f"cursor={cursor}"])
+        raw = run(cmd)
+        data = json.loads(raw)
+        review_threads = (
+            data.get("data", {})
+            .get("repository", {})
+            .get("pullRequest", {})
+            .get("reviewThreads", {})
+        )
+        nodes = review_threads.get("nodes") or []
+        threads.extend(nodes)
+        page_info = review_threads.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            break
+    return threads
 
 
 def line_range(comment: dict) -> tuple[int | None, int | None]:
-    end = comment.get("line") or comment.get("original_line")
+    end = (
+        comment.get("line")
+        or comment.get("original_line")
+        or comment.get("originalLine")
+    )
     start = (
         comment.get("start_line")
         or comment.get("original_start_line")
+        or comment.get("startLine")
+        or comment.get("originalStartLine")
         or end
     )
     return start, end
@@ -100,56 +166,39 @@ def format_ref(path: str, start: int | None, end: int | None) -> str | None:
     return f"{path}#L{start}"
 
 
-def build_threads(comments: list[dict], file_filter: str | None) -> list[dict]:
-    by_id = {c.get("id"): c for c in comments if c.get("id")}
-
-    def root_id(comment: dict) -> int | None:
-        current = comment.get("id")
-        parent = comment.get("in_reply_to_id")
-        while parent and parent in by_id:
-            current = parent
-            parent = by_id[parent].get("in_reply_to_id")
-        return current
-
-    groups: dict[int | None, list[dict]] = {}
-    for comment in comments:
-        path = comment.get("path")
+def build_threads(
+    threads: list[dict],
+    file_filter: str | None,
+    include_resolved: bool,
+) -> list[dict]:
+    items: list[dict] = []
+    for thread in threads:
+        if thread.get("isResolved") and not include_resolved:
+            continue
+        path = thread.get("path")
         if not path:
             continue
         if file_filter and path != file_filter:
             continue
-        start, end = line_range(comment)
+        start, end = line_range(thread)
         if not start and not end:
             continue
-        group_id = root_id(comment)
-        groups.setdefault(group_id, []).append(comment)
-
-    items: list[dict] = []
-    for group_comments in groups.values():
-        group_comments.sort(key=lambda c: c.get("created_at") or "")
-        location = next(
-            (
-                c
-                for c in group_comments
-                if format_ref(c.get("path"), *line_range(c))
-            ),
-            None,
-        )
-        if not location:
-            continue
-        ref = format_ref(location.get("path"), *line_range(location))
+        ref = format_ref(path, start, end)
         if not ref:
             continue
+        comments = (thread.get("comments") or {}).get("nodes") or []
+        comments.sort(key=lambda c: c.get("createdAt") or "")
         items.append(
             {
                 "ref": ref,
+                "resolved": thread.get("isResolved"),
                 "comments": [
                     {
-                        "author": (c.get("user") or {}).get("login"),
-                        "posted": c.get("created_at"),
+                        "author": (c.get("author") or {}).get("login"),
+                        "posted": c.get("createdAt"),
                         "content": c.get("body"),
                     }
-                    for c in group_comments
+                    for c in comments
                 ],
             }
         )
@@ -170,13 +219,18 @@ def main() -> int:
     parser.add_argument("--pr-id", type=int, help="PR number. If omitted, use current branch.")
     parser.add_argument("--repo", help="Repo in owner/name form. If omitted, use gh context.")
     parser.add_argument("--file", help="Filter to a file path.")
+    parser.add_argument(
+        "--include-resolved",
+        action="store_true",
+        help="Include resolved review threads.",
+    )
     args = parser.parse_args()
 
     repo = get_repo(args.repo)
     pr_id = get_pr_number(args.pr_id)
     metadata = get_pr_metadata(repo, pr_id)
-    comments = get_comments(repo, pr_id)
-    threads = build_threads(comments, args.file)
+    review_threads = get_review_threads(repo, pr_id)
+    threads = build_threads(review_threads, args.file, args.include_resolved)
 
     output = {
         "prId": pr_id,
