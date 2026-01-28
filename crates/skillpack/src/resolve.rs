@@ -42,17 +42,24 @@ pub struct ResolvedPack {
 pub fn resolve_pack(repo_root: &Path, pack_path: &Path, cache_dir: &Path) -> Result<ResolvedPack> {
     let pack = load_pack(pack_path)?;
     debug!(pack = %pack_path.display(), "resolve pack");
-    let local_skills = discover_local_skills(repo_root)?;
-    debug!(count = local_skills.len(), "discovered local skills");
-    let local_selected = select_included(&local_skills, &pack.include, "local include")?;
-    let local_resolved: Vec<ResolvedSkill> = local_selected
-        .into_iter()
-        .map(|skill| ResolvedSkill {
-            id: skill.id,
-            dir: skill.dir,
-            source: SkillSource::Local,
-        })
-        .collect();
+
+    // Only discover local skills if pack has local includes
+    let local_resolved: Vec<ResolvedSkill> = if pack.include.is_empty() {
+        debug!("no local includes, skipping local skill discovery");
+        Vec::new()
+    } else {
+        let local_skills = discover_local_skills(repo_root)?;
+        debug!(count = local_skills.len(), "discovered local skills");
+        let local_selected = select_included(&local_skills, &pack.include, "local include")?;
+        local_selected
+            .into_iter()
+            .map(|skill| ResolvedSkill {
+                id: skill.id,
+                dir: skill.dir,
+                source: SkillSource::Local,
+            })
+            .collect()
+    };
     debug!(count = local_resolved.len(), "selected local skills");
 
     let mut import_results = Vec::new();
