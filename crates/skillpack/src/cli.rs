@@ -229,20 +229,24 @@ fn resolve_repo_root(cli: &Cli) -> Result<PathBuf> {
 }
 
 fn list_skills(repo_root: &Path, include_bundled: bool, output: &Output) -> Result<()> {
+    let skills_dir = repo_root.join("skills");
+    if !skills_dir.exists() {
+        return Err(eyre!("skills/ directory not found")
+            .suggestion("Create a skills/ directory or use --root to specify the repo root"));
+    }
+
     let mut ids: Vec<String> = Vec::new();
+    ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
+
     if include_bundled {
-        if repo_root.join("skills").exists() {
-            ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
-        }
         let bundled_root = bundled_repo_root()?;
         ids.extend(
             discover_local_skills(&bundled_root)?
                 .into_iter()
                 .map(|s| s.id),
         );
-    } else if repo_root.join("skills").exists() {
-        ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
     }
+
     let mut unique = HashSet::new();
     ids.retain(|id| unique.insert(id.clone()));
     ids.sort();

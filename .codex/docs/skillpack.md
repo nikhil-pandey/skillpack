@@ -309,13 +309,18 @@ Sketch:
 
 Binary name: `sp`
 
-### 8.1 `sp list`
+### 8.1 `sp skills` (alias: `sp list`)
 
 List local skills discovered under `./skills`.
 
 * Usage:
 
-  * `sp list`
+  * `sp skills`
+  * `sp skills --bundled` (include bundled skills)
+* Behavior:
+
+  * Requires `skills/` directory to exist in the repo root (even with `--bundled`).
+  * Returns an error if `skills/` is absent to prevent misconfigured roots from silently succeeding.
 * Output:
 
   * one skill ID per line (relative to `skills/`)
@@ -394,7 +399,26 @@ List installed packs and where.
 
   * sink, pack, count of skills, install time, dest root
 
-### 8.7 `sp config`
+### 8.7 `sp switch <pack>... --agent <sink> [--path <dest>]`
+
+Switch packs: uninstall all current packs from sink and install new ones.
+
+* Usage:
+
+  * `sp switch team --agent codex`
+  * `sp switch pack1 pack2 --agent codex`
+  * `sp switch team --agent codex --agent claude`
+* Behavior:
+
+  1. Load config, resolve sink path (or use `--path`).
+  2. Resolve all specified pack files and validate they exist.
+  3. For each target sink:
+     * Look up all installed packs for that `sink_path` in state.
+     * Uninstall each installed pack (delete `installed_paths`, remove records).
+     * Install each specified pack (same behavior as `sp install`).
+  4. Write state atomically after all operations complete for each sink.
+
+### 8.8 `sp config`
 
 Print effective sink config.
 

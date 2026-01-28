@@ -56,6 +56,8 @@ fn packs_outputs_pack_names() {
 #[test]
 fn skills_includes_bundled_with_flag() {
     let temp = assert_fs::TempDir::new().unwrap();
+    // skills/ directory is required even with --bundled
+    temp.child("skills").create_dir_all().unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
     cmd.arg("skills")
@@ -66,6 +68,21 @@ fn skills_includes_bundled_with_flag() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("github-fix-code-review"));
+}
+
+#[test]
+fn skills_requires_skills_directory() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    // No skills/ directory created
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("skills")
+        .arg("--root")
+        .arg(temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("skills/ directory not found"));
 }
 
 #[test]
