@@ -215,7 +215,7 @@ fn list_skills(repo_root: &Path, include_bundled: bool, output: &Output) -> Resu
                 .into_iter()
                 .map(|s| s.id),
         );
-    } else {
+    } else if repo_root.join("skills").exists() {
         ids.extend(discover_local_skills(repo_root)?.into_iter().map(|s| s.id));
     }
     let mut unique = HashSet::new();
