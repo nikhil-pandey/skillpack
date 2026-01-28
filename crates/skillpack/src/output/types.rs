@@ -85,3 +85,16 @@ pub struct ConfigView {
     pub overrides: Vec<SinkView>,
     pub effective: Vec<SinkView>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct SwitchSinkView {
+    pub sink: String,
+    pub sink_path: String,
+    pub uninstalled: Vec<String>,
+    pub installed: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SwitchView {
+    pub sinks: Vec<SwitchSinkView>,
+}

@@ -1,7 +1,8 @@
 use super::helpers::{abbreviate_path, short_hash};
 use super::styles::Styles;
 use super::types::{
-    ConfigView, InstallView, InstalledView, OutputFormat, PackSummary, ShowView, UninstallView,
+    ConfigView, InstallView, InstalledView, OutputFormat, PackSummary, ShowView, SwitchView,
+    UninstallView,
 };
 use owo_colors::OwoColorize;
 use serde::Serialize;
@@ -442,6 +443,62 @@ impl Output {
                     ));
                 }
                 out.push('\n');
+                self.write_stdout(&out)
+            }
+        }
+    }
+
+    pub fn print_switch(&self, view: &SwitchView) -> io::Result<()> {
+        match self.format {
+            OutputFormat::Json => self.print_json(view),
+            OutputFormat::Plain => {
+                let mut out = String::new();
+                for sink_view in &view.sinks {
+                    out.push_str("switched ");
+                    out.push_str(&sink_view.sink);
+                    out.push_str(" uninstalled ");
+                    out.push_str(&sink_view.uninstalled.len().to_string());
+                    out.push_str(" installed ");
+                    out.push_str(&sink_view.installed.len().to_string());
+                    out.push('\n');
+                }
+                self.write_stdout(&out)
+            }
+            OutputFormat::Pretty => {
+                let mut out = String::new();
+
+                for sink_view in &view.sinks {
+                    out.push_str(&format!(
+                        "{} Switched {}\n\n",
+                        "✓".style(self.styles.success()),
+                        sink_view.sink.style(self.styles.name())
+                    ));
+
+                    out.push_str(&format!(
+                        "  {} {}\n",
+                        "path".style(self.styles.label()),
+                        abbreviate_path(&sink_view.sink_path).style(self.styles.path())
+                    ));
+
+                    if !sink_view.uninstalled.is_empty() {
+                        out.push_str(&format!(
+                            "  {} {}\n",
+                            "uninstalled".style(self.styles.label()),
+                            sink_view.uninstalled.join(", ").style(self.styles.path())
+                        ));
+                    }
+
+                    if !sink_view.installed.is_empty() {
+                        out.push_str(&format!(
+                            "  {} {}\n",
+                            "installed".style(self.styles.label()),
+                            sink_view.installed.join(", ").style(self.styles.success())
+                        ));
+                    }
+
+                    out.push('\n');
+                }
+
                 self.write_stdout(&out)
             }
         }

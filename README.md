@@ -42,6 +42,9 @@ sp installed
 
 # uninstall
 sp uninstall general --codex
+
+# switch packs (uninstalls all current, installs new)
+sp switch team --codex
 ```
 
 Machine-friendly output:
@@ -170,4 +173,17 @@ Remove a pack:
 
 ```bash
 sp uninstall team --codex
+```
+
+Switch contexts (clean slate):
+
+```bash
+# Uninstall all packs from codex, then install "personal"
+sp switch personal --codex
+
+# Switch to multiple packs at once
+sp switch team security --codex
+
+# Switch across multiple agents
+sp switch daily --codex --claude
 ```
