@@ -175,3 +175,102 @@ fn auto_discovers_repo_root() {
         .success()
         .stdout(predicate::str::contains("alpha"));
 }
+
+#[test]
+fn switch_uninstalls_all_and_installs_new() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    // Create two skills and two packs
+    temp.child("skills/alpha/SKILL.md").write_str("x").unwrap();
+    temp.child("skills/beta/SKILL.md").write_str("x").unwrap();
+    temp.child("packs/pack1.yaml")
+        .write_str("name: pack1\ninclude:\n  - alpha/**\n")
+        .unwrap();
+    temp.child("packs/pack2.yaml")
+        .write_str("name: pack2\ninclude:\n  - beta/**\n")
+        .unwrap();
+    let sink = temp.child("sink");
+    sink.create_dir_all().unwrap();
+
+    // First install pack1
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("install")
+        .arg("pack1")
+        .arg("--custom")
+        .arg("--path")
+        .arg(sink.path())
+        .arg("--root")
+        .arg(temp.path())
+        .arg("--cache-dir")
+        .arg(temp.child("cache").path())
+        .env("HOME", temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success();
+
+    // Verify pack1 is installed
+    assert!(sink.child("pack1__alpha").exists());
+    assert!(!sink.child("pack2__beta").exists());
+
+    // Switch to pack2
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("switch")
+        .arg("pack2")
+        .arg("--custom")
+        .arg("--path")
+        .arg(sink.path())
+        .arg("--root")
+        .arg(temp.path())
+        .arg("--cache-dir")
+        .arg(temp.child("cache").path())
+        .env("HOME", temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success().stdout(
+        predicate::str::contains("Switched")
+            .and(predicate::str::contains("uninstalled"))
+            .and(predicate::str::contains("pack1"))
+            .and(predicate::str::contains("installed"))
+            .and(predicate::str::contains("pack2")),
+    );
+
+    // Verify pack1 is gone and pack2 is installed
+    assert!(!sink.child("pack1__alpha").exists());
+    assert!(sink.child("pack2__beta").exists());
+}
+
+#[test]
+fn switch_installs_multiple_packs() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    temp.child("skills/alpha/SKILL.md").write_str("x").unwrap();
+    temp.child("skills/beta/SKILL.md").write_str("x").unwrap();
+    temp.child("packs/pack1.yaml")
+        .write_str("name: pack1\ninclude:\n  - alpha/**\n")
+        .unwrap();
+    temp.child("packs/pack2.yaml")
+        .write_str("name: pack2\ninclude:\n  - beta/**\n")
+        .unwrap();
+    let sink = temp.child("sink");
+    sink.create_dir_all().unwrap();
+
+    // Switch to both packs at once
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("sp"));
+    cmd.arg("switch")
+        .arg("pack1")
+        .arg("pack2")
+        .arg("--custom")
+        .arg("--path")
+        .arg(sink.path())
+        .arg("--root")
+        .arg(temp.path())
+        .arg("--cache-dir")
+        .arg(temp.child("cache").path())
+        .env("HOME", temp.path())
+        .env("SKILLPACK_HOME", temp.child(".skillpack").path());
+    cmd.assert().success().stdout(
+        predicate::str::contains("Switched")
+            .and(predicate::str::contains("pack1"))
+            .and(predicate::str::contains("pack2")),
+    );
+
+    // Verify both packs are installed
+    assert!(sink.child("pack1__alpha").exists());
+    assert!(sink.child("pack2__beta").exists());
+}

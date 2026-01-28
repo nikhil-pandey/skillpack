@@ -4,7 +4,7 @@ use crate::discover::discover_local_skills;
 use crate::install::{install_pack, uninstall_pack};
 use crate::output::{
     ConfigView, ImportView, InstallView, InstalledItem, InstalledView, Output, OutputFormat,
-    PackInfo, PackSummary, ShowView, SinkView, UninstallView,
+    PackInfo, PackSummary, ShowView, SinkView, SwitchSinkView, SwitchView, UninstallView,
 };
 use crate::pack::{load_pack, resolve_pack_path};
 use crate::resolve::{detect_collisions, resolve_pack};
@@ -139,6 +139,19 @@ enum Commands {
         )]
         path: Option<PathBuf>,
     },
+    #[command(about = "Switch packs: uninstall all current packs and install new ones")]
+    Switch {
+        #[arg(value_name = "PACK", required = true, num_args = 1..)]
+        packs: Vec<String>,
+        #[command(flatten)]
+        targets: AgentTargets,
+        #[arg(
+            long,
+            value_hint = ValueHint::DirPath,
+            help = "Override agent destination path (required for custom)"
+        )]
+        path: Option<PathBuf>,
+    },
     #[command(about = "Show sink configuration", visible_alias = "sinks")]
     Config,
 }
@@ -188,6 +201,18 @@ fn run_inner(cli: &Cli, output: &Output) -> Result<()> {
             ref targets,
             ref path,
         } => installed_cmd(targets, path.as_deref(), output),
+        Commands::Switch {
+            ref packs,
+            ref targets,
+            ref path,
+        } => switch_cmd(
+            &resolve_repo_root(cli)?,
+            &cache_dir,
+            packs,
+            targets,
+            path.as_deref(),
+            output,
+        ),
         Commands::Config => config_cmd(output),
     }
 }
@@ -485,6 +510,76 @@ fn uninstall_cmd(
         };
         output.print_uninstall(&view)?;
     }
+    Ok(())
+}
+
+fn switch_cmd(
+    repo_root: &Path,
+    cache_dir: &Path,
+    pack_args: &[String],
+    targets: &AgentTargets,
+    path_override: Option<&Path>,
+    output: &Output,
+) -> Result<()> {
+    let config = load_config()?;
+    let agents = require_agents(targets)?;
+    validate_agent_selection(&agents, path_override)?;
+
+    // Pre-resolve all packs to fail early if any pack is invalid
+    let mut resolved_packs = Vec::new();
+    for pack_arg in pack_args {
+        let (pack_path, pack_root) = resolve_pack_context(repo_root, pack_arg)?;
+        let resolved = resolve_pack(&pack_root, &pack_path, cache_dir)?;
+        detect_collisions(
+            &resolved.final_skills,
+            &resolved.pack.install_prefix,
+            &resolved.pack.install_sep,
+            resolved.pack.install_flatten,
+        )?;
+        resolved_packs.push((pack_path, resolved));
+    }
+
+    let mut state = load_state()?;
+    let mut sink_views = Vec::new();
+
+    for agent in &agents {
+        let sink_path = resolve_sink_path(&config, agent, path_override)?;
+        let sink_path_str = sink_path.display().to_string();
+
+        // Find all packs currently installed to this sink
+        let installed_packs: Vec<String> = state
+            .installs
+            .iter()
+            .filter(|r| r.sink_path == sink_path_str)
+            .map(|r| r.pack.clone())
+            .collect();
+
+        // Uninstall all existing packs from this sink
+        let mut uninstalled = Vec::new();
+        for pack_name in &installed_packs {
+            uninstall_pack(&mut state, &sink_path, pack_name)?;
+            uninstalled.push(pack_name.clone());
+        }
+
+        // Install new packs
+        let mut installed = Vec::new();
+        for (_pack_path, resolved) in &resolved_packs {
+            install_pack(resolved, agent, &sink_path, &mut state)?;
+            installed.push(resolved.pack.name.clone());
+        }
+
+        write_state(&state)?;
+
+        sink_views.push(SwitchSinkView {
+            sink: agent.to_string(),
+            sink_path: sink_path_str,
+            uninstalled,
+            installed,
+        });
+    }
+
+    let view = SwitchView { sinks: sink_views };
+    output.print_switch(&view)?;
     Ok(())
 }
 
